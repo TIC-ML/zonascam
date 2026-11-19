@@ -87,7 +87,7 @@
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(mapa);
-  const capas = { sin: L.layerGroup(), con: L.layerGroup(), nodato: L.layerGroup(), zonas: L.layerGroup() };
+  const capas = { sin: L.layerGroup(), con: L.layerGroup(), nodato: L.layerGroup(), novis: L.layerGroup(), zonas: L.layerGroup() };
   const marcadores = {};
 
   // HTML del popup de un centro
@@ -108,8 +108,10 @@
     Object.values(capas).forEach((g) => g !== capas.zonas && g.clearLayers());
     E.centros.forEach((c) => {
       if (c.lat == null) return;
-      const tipo = c.asam === true ? "con" : c.asam === false ? "sin" : "nodato";
-      const col = { con: "#1a9641", sin: "#d7191c", nodato: "#9e9e9e" }[tipo];
+      // Los tipos excluidos del reparto (aulas de hospital y prisión) sin asamblea se pintan aparte: no se visitan
+      const excluido = c.asam !== true && (CONFIG.TIPOS_EXCLUIDOS_DEL_REPARTO || []).includes(c.t);
+      const tipo = excluido ? "novis" : c.asam === true ? "con" : c.asam === false ? "sin" : "nodato";
+      const col = { con: "#1a9641", sin: "#d7191c", nodato: "#9e9e9e", novis: "#ffffff" }[tipo];
       const m = L.circleMarker([c.lat, c.lon], { radius: 5, color: "#333", weight: 1, fillColor: col, fillOpacity: 0.9 })
         .bindPopup(() => popupCentro(c));
       m.addTo(capas[tipo]);
@@ -155,11 +157,11 @@
 
   // Muestra u oculta capas según las casillas
   function sincronizarCapas() {
-    [["#ver-sin", capas.sin], ["#ver-con", capas.con], ["#ver-nodato", capas.nodato], ["#ver-zonas", capas.zonas]]
+    [["#ver-sin", capas.sin], ["#ver-con", capas.con], ["#ver-nodato", capas.nodato], ["#ver-novis", capas.novis], ["#ver-zonas", capas.zonas]]
       .forEach(([sel, g]) => ($(sel).checked ? g.addTo(mapa) : g.remove()));
     capas.sin.eachLayer((l) => l.bringToFront && l.bringToFront());
   }
-  ["#ver-sin", "#ver-con", "#ver-nodato", "#ver-zonas"].forEach((s) => $(s).addEventListener("change", sincronizarCapas));
+  ["#ver-sin", "#ver-con", "#ver-nodato", "#ver-novis", "#ver-zonas"].forEach((s) => $(s).addEventListener("change", sincronizarCapas));
   $("#ocultar-reservadas").addEventListener("change", pintarZonas);
 
   // ---------- Zonas ----------
