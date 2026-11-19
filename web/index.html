@@ -28,7 +28,7 @@
       <label><input type="checkbox" id="ver-sin" checked> <span class="punto sin"></span> Sin asamblea</label>
       <label><input type="checkbox" id="ver-con" checked> <span class="punto con"></span> Con asamblea</label>
       <label><input type="checkbox" id="ver-nodato" checked> <span class="punto nodato"></span> Sin dato</label>
-      <label title="Aulas en hospitales y prisiones: no entran en las zonas"><input type="checkbox" id="ver-novis" checked> <span class="punto novis"></span> No visitable</label>
+      <label title="Sin asamblea pero fuera de las zonas: equipos de orientación, escuelas infantiles, casas de niños, aulas de hospital y prisión, y centros con menos de 10 docentes"><input type="checkbox" id="ver-novis" checked> <span class="punto novis"></span> Fuera del reparto</label>
       <label><input type="checkbox" id="ver-zonas" checked> Zonas</label>
       <label><input type="checkbox" id="ocultar-reservadas"> Ocultar zonas reservadas</label>
       <span id="leyenda"></span>
@@ -38,6 +38,7 @@
 
   <!-- ZONAS -->
   <section id="tab-zonas" class="panel">
+    <div class="resumen"></div>
     <div class="barra">
       <span id="estado-zonas"></span>
       <span id="contador-zonas" class="contador"></span>
@@ -79,6 +80,7 @@
             <p class="ayuda">Escanea el QR con el móvil o pulsa el enlace.</p>
           </div>
         </div>
+        <div class="resumen"></div>
         <div class="barra">
           <h2>Reservas</h2>
           <button id="refrescar-reservas">🔄 Actualizar</button>

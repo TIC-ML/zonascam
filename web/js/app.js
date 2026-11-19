@@ -43,12 +43,12 @@
     });
   }
 
-  // Centros que entran en el reparto (sin asamblea; opcionalmente solo con profesores)
-  function centrosAVisitar(soloConProfes) {
-    const excl = CONFIG.TIPOS_EXCLUIDOS_DEL_REPARTO || [];
-    return E.centros.filter((c) => c.lat != null && c.asam !== true && !excl.includes(c.t) &&
-      (CONFIG.SIN_DATO_CUENTA_COMO_SIN_ASAMBLEA || c.asam === false) && (!soloConProfes || c.prof > 0));
+  // Centros que entran en el reparto (regla en Zonas.entraEnReparto, configurable en config.js)
+  function centrosAVisitar() {
+    return E.centros.filter((c) => Zonas.entraEnReparto(c, CONFIG));
   }
+  // Nº de docentes para mostrar ("¿?" si no se conoce)
+  const txtProf = (p) => (p == null ? "¿?" : p);
 
   // Reservas válidas para la versión de zonas publicada, indexadas por zona
   function reservasPorZona() {
@@ -96,7 +96,7 @@
     const etq = c.asam === true ? "si" : c.asam === false ? "no" : "nd";
     return `<div class="popup"><h3>${esc(c.t)} ${esc(c.n)}</h3>
       <p>${esc(c.dir)}${c.cp ? ", " + esc(c.cp) : ""} · ${esc(c.mun)}${c.dis ? " (" + esc(c.dis) + ")" : ""}</p>
-      <p><b>${c.prof}</b> profesores (plantilla orgánica) · Asamblea: <span class="etq ${etq}">${txtAsam(c.asam)}</span></p>
+      <p><b>${txtProf(c.prof)}</b> docentes (plantilla orgánica) · Asamblea: <span class="etq ${etq}">${txtAsam(c.asam)}</span></p>
       ${z ? `<p>Zona: <b>${z.id}</b></p>` : ""}
       <p><a href="${gmaps(c)}" target="_blank" rel="noopener">Google Maps</a> · <a href="${osm(c)}" target="_blank" rel="noopener">OpenStreetMap</a>
       ${c.web ? ` · <a href="${esc(c.web)}" target="_blank" rel="noopener">Web</a>` : ""}</p>
@@ -108,8 +108,8 @@
     Object.values(capas).forEach((g) => g !== capas.zonas && g.clearLayers());
     E.centros.forEach((c) => {
       if (c.lat == null) return;
-      // Los tipos excluidos del reparto (aulas de hospital y prisión) sin asamblea se pintan aparte: no se visitan
-      const excluido = c.asam !== true && (CONFIG.TIPOS_EXCLUIDOS_DEL_REPARTO || []).includes(c.t);
+      // Los centros sin asamblea que no entran en el reparto (tipo excluido o pocos docentes) se pintan aparte
+      const excluido = c.asam !== true && !Zonas.entraEnReparto(c, CONFIG);
       const tipo = excluido ? "novis" : c.asam === true ? "con" : c.asam === false ? "sin" : "nodato";
       const col = { con: "#1a9641", sin: "#d7191c", nodato: "#9e9e9e", novis: "#ffffff" }[tipo];
       const m = L.circleMarker([c.lat, c.lon], { radius: 5, color: "#333", weight: 1, fillColor: col, fillOpacity: 0.9 })
@@ -128,14 +128,14 @@
   function popupZona(z, res) {
     const cs = z.centros.map((id) => E.porId[id]);
     const r = res[z.id];
-    return `<div class="popup"><h3>Zona ${z.id} · ${z.profesores} profesores</h3>
+    return `<div class="popup"><h3>Zona ${z.id} · ${z.profesores} docentes</h3>
       <p>${z.n_centros} centros · ${esc(z.municipios)}${z.distritos ? " (" + esc(z.distritos) + ")" : ""}</p>
       <p>Recorrido aprox. ${z.km_ruta} km en línea recta${z.coche ? " · 🚗 mejor con coche" : ""}</p>
-      <ol>${cs.map((c) => `<li>${esc(c.t)} ${esc(c.n)} (${c.prof}) – <a href="${gmaps(c)}" target="_blank" rel="noopener">mapa</a></li>`).join("")}</ol>
+      <ol>${cs.map((c) => `<li>${esc(c.t)} ${esc(c.n)} (${txtProf(c.prof)}) – <a href="${gmaps(c)}" target="_blank" rel="noopener">mapa</a></li>`).join("")}</ol>
       <p><a href="${Zonas.enlaceRuta(cs)}" target="_blank" rel="noopener">🧭 Ruta en Google Maps</a> · <button onclick="window.__pdf('${z.id}')">📄 PDF de la zona</button></p>
       ${r ? `<p><span class="etq res">Reservada: ${esc(r.equipo)} · ${fmtDia(r.dia)}</span></p>`
           : E.simulacion ? `<p class="ayuda">Simulación: no se puede reservar.</p>`
-          : `<p><button onclick="window.__reservar('${z.id}')">📅 Reservar esta zona</button></p>`}</div>`;
+          : `<p><button class="boton-reservar" onclick="window.__reservar('${z.id}')">📅 Reservar esta zona</button></p>`}</div>`;
   }
 
   // Pinta los polígonos de las zonas coloreados por nº de profesores
@@ -146,13 +146,16 @@
     E.zonas.zonas.forEach((z) => {
       const r = !E.simulacion && res[z.id];
       if (ocultar && r) return;
-      const estilo = { color: r ? "#1f4e78" : "#555", weight: r ? 3 : 1, dashArray: r ? "6 4" : null, fillColor: color(z.profesores, cs), fillOpacity: r ? 0.15 : 0.45 };
+      // Las zonas reservadas se pintan en gris; las libres, por nº de docentes
+      const estilo = r ? { color: "#666", weight: 2, fillColor: "#9e9e9e", fillOpacity: 0.55 }
+        : { color: "#555", weight: 1, fillColor: color(z.profesores, cs), fillOpacity: 0.45 };
       const capa = z.poligono ? L.polygon(z.poligono, estilo) : L.circle(z.centro, Object.assign({ radius: 300 }, estilo));
-      capa.bindPopup(() => popupZona(z, res)).bindTooltip(z.id, { sticky: true });
+      capa.bindPopup(() => popupZona(z, res)).bindTooltip(`${z.id}${r ? " · reservada" : " · pulsa para reservar"}`, { sticky: true });
       capa.addTo(capas.zonas);
     });
-    $("#leyenda").innerHTML = "Profes/zona: " + CONFIG.COLORES.map((c, i) =>
-      `<i style="background:${c}"></i>${i === 0 ? "≤" + cs[0] : i === 4 ? ">" + cs[3] : ""}`).join("");
+    $("#leyenda").innerHTML = "Docentes/zona: " + CONFIG.COLORES.map((c, i) =>
+      `<i style="background:${c}"></i>${i === 0 ? "≤" + cs[0] : i === 4 ? ">" + cs[3] : ""}`).join("") +
+      ` <i style="background:#9e9e9e"></i>reservada`;
   }
 
   // Muestra u oculta capas según las casillas
@@ -191,7 +194,7 @@
       initialSort: [{ column: "profesores", dir: "desc" }],
       columns: [
         { title: "Zona", field: "id", headerFilter: "input" },
-        { title: "Profes", field: "profesores", sorter: "number", hozAlign: "right", headerFilter: "number", headerFilterPlaceholder: "≥", headerFilterFunc: ">=" },
+        { title: "Docentes", field: "profesores", sorter: "number", hozAlign: "right", headerFilter: "number", headerFilterPlaceholder: "≥", headerFilterFunc: ">=" },
         { title: "Centros", field: "n_centros", hozAlign: "right" },
         { title: "Municipios", field: "municipios", headerFilter: "input" },
         { title: "Distritos", field: "distritos", headerFilter: "input" },
@@ -200,6 +203,9 @@
         { title: "Estado", field: "estado", headerFilter: "list", headerFilterParams: { values: ["Libre", "Reservada"], clearable: true } },
         { title: "Equipo", field: "equipo", headerFilter: "input", formatter: (c) => esc(c.getValue()) },
         { title: "Día", field: "dia", headerFilter: "input" },
+        { title: "", field: "estado", headerSort: false, hozAlign: "center",
+          formatter: (c) => (c.getValue() === "Libre" && !E.simulacion ? '<button class="boton-reservar">📅 Reservar</button>' : ""),
+          cellClick: (e, cell) => { if (e.target.tagName === "BUTTON") window.__reservar(cell.getRow().getData().id); } },
         { title: "Ruta", field: "ruta", formatter: "link", formatterParams: { label: "Google Maps", target: "_blank" }, headerSort: false },
         { title: "PDF", formatter: () => "📄", hozAlign: "center", headerSort: false, tooltip: "Descargar el PDF de esta zona", cellClick: (e, cell) => pdfZona(cell.getRow().getData().id) },
         { title: "Centros", field: "centros", headerFilter: "input", width: 400 },
@@ -215,6 +221,17 @@
     irA("mapa");
     const b = L.latLngBounds(z.centros.map((cid) => [E.porId[cid].lat, E.porId[cid].lon]));
     mapa.fitBounds(b.pad(0.5));
+  }
+  // Contador de zonas: total, reservadas, libres y docentes aproximados en las zonas libres
+  function pintarResumen() {
+    if (!E.zonas) return;
+    const res = E.simulacion ? {} : reservasPorZona();
+    const total = E.zonas.zonas.length, libres = E.zonas.zonas.filter((z) => !res[z.id]);
+    const docentes = libres.reduce((s, z) => s + z.profesores, 0);
+    const html = `<span><b>${total}</b> zonas</span><span><b>${total - libres.length}</b> reservadas</span>` +
+      `<span><b>${libres.length}</b> por reservar</span>` +
+      `<span title="Suma de la plantilla orgánica de los centros de las zonas sin reservar (sin contar los centros con nº desconocido)">≈ <b>${docentes.toLocaleString("es-ES")}</b> docentes por alcanzar</span>`;
+    document.querySelectorAll(".resumen").forEach((e) => (e.innerHTML = html));
   }
   // Texto de estado de las zonas mostradas
   function estadoZonas() {
@@ -285,8 +302,8 @@
   function rellenarFormulario() {
     const res = reservasPorZona();
     const libres = E.zonasPublicadas ? E.zonasPublicadas.zonas.filter((z) => !res[z.id]) : [];
-    $("#r-zona").innerHTML = '<option value="">— elige zona (ordenadas por nº de profes) —</option>' +
-      libres.map((z) => `<option value="${z.id}">${z.id} · ${z.profesores} profes · ${esc(z.municipios)}${z.distritos ? " (" + esc(z.distritos) + ")" : ""}${z.coche ? " · 🚗" : ""}</option>`).join("");
+    $("#r-zona").innerHTML = '<option value="">— elige zona (ordenadas por nº de docentes) —</option>' +
+      libres.map((z) => `<option value="${z.id}">${z.id} · ${z.profesores} docentes · ${esc(z.municipios)}${z.distritos ? " (" + esc(z.distritos) + ")" : ""}${z.coche ? " · 🚗" : ""}</option>`).join("");
     $("#r-dia").innerHTML = E.fechas.map((f) => `<option value="${f}">${fmtDia(f)}</option>`).join("");
     try { $("#r-codigo").value = localStorage.getItem("codigoCampana") || ""; } catch (e) { /* sin almacenamiento */ }
   }
@@ -306,7 +323,7 @@
       { title: "Fecha", field: "dia", visible: false },
       { title: "Día", field: "diaTxt", headerFilter: "list", headerFilterParams: { valuesLookup: true, clearable: true } },
       { title: "Zona", field: "zona", headerFilter: "input" },
-      { title: "Profes", field: "profesores", hozAlign: "right" },
+      { title: "Docentes", field: "profesores", hozAlign: "right" },
       { title: "Municipios", field: "municipios", headerFilter: "input" },
       { title: "Equipo", field: "equipo", headerFilter: "input", formatter: (c) => esc(c.getValue()) },
       { title: "Responsable", field: "responsable", headerFilter: "input", formatter: (c) => esc(c.getValue()) },
@@ -376,7 +393,7 @@
 
   // Repinta mapa, tablas y formulario
   function refrescarTodo() {
-    pintarZonas(); sincronizarCapas(); pintarTablaZonas(); estadoZonas(); rellenarFormulario(); pintarReservas();
+    pintarZonas(); sincronizarCapas(); pintarTablaZonas(); estadoZonas(); pintarResumen(); rellenarFormulario(); pintarReservas();
   }
 
   // Descarga data/centros.bin y lo descodifica (XOR con CLAVE_DATOS + descompresión); ver scripts/preparar_datos.py
@@ -404,7 +421,7 @@
     if (!d.meta.asambleas_cargadas) avisos.push("Aún no se han cargado los datos de asambleas: todos los centros aparecen como <b>sin dato</b>.");
     if (E.zonasPublicadas) { E.zonas = E.zonasPublicadas; }
     else {
-      E.zonas = Zonas.calcularZonas(centrosAVisitar(CONFIG.SOLO_CON_PROFESORES !== false), { porZona: CONFIG.CENTROS_POR_ZONA, semilla: CONFIG.SEMILLA, kmCoche: CONFIG.KM_PARA_COCHE });
+      E.zonas = Zonas.calcularZonas(centrosAVisitar(), { porZona: CONFIG.CENTROS_POR_ZONA, semilla: CONFIG.SEMILLA, kmCoche: CONFIG.KM_PARA_COCHE });
       E.simulacion = true;
       avisos.push("Zonas <b>provisionales</b>: todavía no se pueden reservar.");
     }

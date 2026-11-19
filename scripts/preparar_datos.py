@@ -132,14 +132,14 @@ def main():
             pass
         dudas = []
         if r["CODIGO"] not in profes:
-            dudas.append("Sin plantilla orgánica: nº profesores desconocido (0).")
+            dudas.append("Sin plantilla orgánica: nº de docentes desconocido.")
         if lat is None:
             dudas.append("Sin coordenadas.")
         centros.append(dict(
             id=r["CODIGO"], n=r["CENTRO"], t=r["TIPO_ABRV"], te=r["TIPO_EXT"],
             dir=direccion(r), cp=r["CDPOSTAL"], mun=r["MUNICIPIO"], dis=r["DISTRITO"], dat=r["DAT"],
             tel=r["TELEFONO"], web=r["WEB"], mail=r["E_MAIL"], lat=lat, lon=lon,
-            prof=profes.get(r["CODIGO"], 0), origen="CSV CAM", tit="CAM", dudas=" ".join(dudas)))
+            prof=profes.get(r["CODIGO"]), origen="CSV CAM", tit="CAM", dudas=" ".join(dudas)))
     extra = FUENTES / "centros_extra.csv"
     if extra.exists():
         e = pd.read_csv(extra, dtype=str).fillna("")
@@ -150,7 +150,7 @@ def main():
             centros.append(dict(
                 id=r["CODIGO"], n=r["CENTRO"], t=r["TIPO_ABRV"], te=r["TIPO_EXT"], dir=r["DOMICILIO"],
                 cp=r["CDPOSTAL"], mun=r["MUNICIPIO"], dis=r["DISTRITO"], dat="", tel="", web="", mail="",
-                lat=lat, lon=lon, prof=profes.get(r["CODIGO"], 0), origen="Añadido", tit=r["TITULARIDAD_REAL"],
+                lat=lat, lon=lon, prof=profes.get(r["CODIGO"]), origen="Añadido", tit=r["TITULARIDAD_REAL"],
                 dudas=dudas.strip()))
     for x in centros:
         x["asam"] = None if asambleas is None else (x["id"] in asambleas)

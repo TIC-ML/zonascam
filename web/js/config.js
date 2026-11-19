@@ -21,13 +21,14 @@ window.CONFIG = {
   // Si true, los centros "sin dato" de asamblea cuentan como "sin asamblea" al repartir zonas
   SIN_DATO_CUENTA_COMO_SIN_ASAMBLEA: true,
 
-  // Tipos de centro (columna "Tipo") que NO entran en el reparto de zonas: aulas en hospitales y prisiones (no visitables).
-  // En el mapa se pintan aparte ("no visitable") para que ningún punto rojo quede fuera de una zona.
-  TIPOS_EXCLUIDOS_DEL_REPARTO: ["A. HOSP.", "CEPA.EP"],
+  // Tipos de centro (columna "Tipo") que NO entran en el reparto de zonas. En el mapa se pintan en blanco ("fuera del reparto").
+  // EOEP: equipos de orientación; EEI, EEI-CN y ZNAS.CN.: escuelas infantiles y casas de niños;
+  // A. HOSP. y CEPA.EP: aulas en hospitales y prisiones (no visitables)
+  TIPOS_EXCLUIDOS_DEL_REPARTO: ["EOEP GENERAL", "EOEP ATEN-TEMPR", "EOEP ESPECÍFICO", "EEI", "EEI-CN", "ZNAS.CN.", "A. HOSP.", "CEPA.EP"],
 
-  // Si true, el reparto solo incluye centros con profesores en la plantilla orgánica (deja fuera escuelas
-  // infantiles, casas de niños, CET, UFIL, CTIF…, que tienen 0 profesores en plantilla)
-  SOLO_CON_PROFESORES: false,
+  // Mínimo de docentes (plantilla orgánica) para que un centro entre en el reparto.
+  // Si no se conoce el nº de docentes del centro, se supone que son más y entra.
+  MIN_DOCENTES: 10,
 
   // Recorrido en línea recta (km) a partir del cual una zona se marca como "mejor con coche"
   KM_PARA_COCHE: 6,

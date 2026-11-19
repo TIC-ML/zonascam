@@ -53,3 +53,10 @@ footer { font-size: .8rem; color: #666; padding: .5rem 1rem 1rem; }
 fieldset.contacto { border: 1px solid #ddd; border-radius: 6px; padding: .4rem .6rem .6rem; display: flex; flex-direction: column; gap: .4rem; }
 fieldset.contacto legend { font-size: .82rem; color: #555; padding: 0 .3rem; }
 @media (max-width: 700px) { .boton-tg { margin-left: 0; } .tg-qr { width: 90px; height: 90px; } }
+
+/* Contador de zonas (total, reservadas, por reservar, docentes) y botón de reservar */
+.resumen { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; background: #eef3f9; border: 1px solid #c9d7e8; border-radius: 8px; padding: .45rem .8rem; margin: .4rem 0; font-size: .95rem; }
+.resumen:empty { display: none; }
+.resumen b { font-size: 1.1rem; color: #1f4e78; }
+.boton-reservar { background: #1f4e78; color: #fff; font-weight: 600; padding: .2rem .6rem; }
+.boton-reservar:hover { background: #2b6399; }
