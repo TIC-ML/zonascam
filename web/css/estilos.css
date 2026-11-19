@@ -1,0 +1,55 @@
+/* Estilos sencillos y legibles; pensados también para móvil */
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 15px; color: #222; background: #f6f6f4; }
+header { background: #1f4e78; color: #fff; padding: .5rem 1rem; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.5rem; }
+header h1 { font-size: 1.15rem; margin: 0; }
+nav { display: flex; gap: .25rem; flex-wrap: wrap; }
+.tab { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.4); border-radius: 6px; padding: .4rem .8rem; font-size: .95rem; cursor: pointer; }
+.tab.activa { background: #fff; color: #1f4e78; font-weight: 600; }
+.panel { display: none; padding: .5rem 1rem; }
+.panel.activo { display: block; }
+.barra { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; margin: .4rem 0; }
+.barra h2 { margin: 0; font-size: 1.05rem; }
+button { font: inherit; padding: .35rem .7rem; border-radius: 6px; border: 1px solid #1f4e78; background: #fff; color: #1f4e78; cursor: pointer; }
+button:hover { background: #e8f0f8; }
+#mapa { height: calc(100vh - 170px); min-height: 420px; border-radius: 8px; border: 1px solid #ccc; }
+.punto { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: middle; border: 1px solid #333; }
+.punto.sin { background: #d7191c; } .punto.con { background: #1a9641; } .punto.nodato { background: #9e9e9e; }
+#leyenda { display: inline-flex; gap: .2rem; align-items: center; font-size: .85rem; }
+#leyenda i { display: inline-block; width: 18px; height: 12px; border: 1px solid #999; }
+.aviso { background: #fff3cd; border: 1px solid #e0c36a; padding: .5rem 1rem; margin: .5rem 1rem 0; border-radius: 6px; }
+.oculto { display: none; }
+.contador { color: #555; font-size: .9rem; }
+.columnas { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-start; }
+.tarjeta { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: .8rem 1rem; }
+#form-reserva { width: 340px; max-width: 100%; display: flex; flex-direction: column; gap: .5rem; }
+#form-reserva label { display: flex; flex-direction: column; font-size: .9rem; gap: .15rem; }
+#form-reserva input, #form-reserva select { font: inherit; padding: .35rem; border: 1px solid #bbb; border-radius: 5px; }
+#form-reserva button[type=submit] { background: #1f4e78; color: #fff; padding: .55rem; font-weight: 600; }
+.tarjeta.ancha { flex: 1; min-width: 320px; }
+.ayuda { color: #555; font-size: .85rem; margin: 0; }
+.msg { font-weight: 600; } .msg.ok { color: #1a7f37; } .msg.error { color: #b42318; }
+.popup h3 { margin: 0 0 .3rem; font-size: 1rem; }
+.popup p { margin: .15rem 0; }
+.popup ol { margin: .3rem 0; padding-left: 1.2rem; }
+.etq { display: inline-block; padding: 0 .4rem; border-radius: 4px; font-size: .8rem; }
+.etq.si { background: #d4edda; } .etq.no { background: #f8d7da; } .etq.nd { background: #e2e2e2; } .etq.res { background: #cfe2ff; }
+footer { font-size: .8rem; color: #666; padding: .5rem 1rem 1rem; }
+@media (max-width: 700px) { #mapa { height: 65vh; } header h1 { font-size: 1rem; } }
+
+/* Telegram: botón de cabecera, bloque con QR y ventana */
+.boton-tg { margin-left: auto; background: #229ed9; color: #fff; border: 0; font-weight: 600; }
+.boton-tg:hover { background: #1b8bc0; }
+.tg-bloque { display: flex; gap: 1rem; align-items: center; background: #eef7fc; border: 1px solid #bfe3f5; border-radius: 8px; padding: .6rem .8rem; margin-bottom: .6rem; }
+.tg-bloque h2 { margin: 0 0 .2rem; font-size: 1.05rem; }
+.tg-bloque p { margin: .2rem 0; }
+.tg-qr { width: 120px; height: 120px; flex: none; }
+.tg-qr.grande { width: 240px; height: 240px; display: block; margin: .5rem auto; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+.modal.oculto { display: none; }
+.modal-caja { background: #fff; border-radius: 10px; padding: 1rem 1.4rem; text-align: center; max-width: 92vw; position: relative; }
+.modal-caja h2 { margin: .2rem 0; }
+.cerrar { position: absolute; top: .4rem; right: .4rem; border: 0; font-size: 1.1rem; }
+fieldset.contacto { border: 1px solid #ddd; border-radius: 6px; padding: .4rem .6rem .6rem; display: flex; flex-direction: column; gap: .4rem; }
+fieldset.contacto legend { font-size: .82rem; color: #555; padding: 0 .3rem; }
+@media (max-width: 700px) { .boton-tg { margin-left: 0; } .tg-qr { width: 90px; height: 90px; } }

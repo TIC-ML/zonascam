@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Para todos los docentes de la pública</title>
+  <!-- Leaflet (mapa), Tabulator (tablas) y jsPDF (PDF de cada zona), servidos desde CDN gratuitos -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator_simple.min.css">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+  <header>
+    <h1 id="titulo">Para todos los docentes de la pública</h1>
+    <nav>
+      <button class="tab activa" data-tab="mapa">🗺️ Mapa</button>
+      <button class="tab" data-tab="zonas">🧭 Zonas</button>
+      <button class="tab" data-tab="reservas">📅 Reservas</button>
+    </nav>
+    <button id="btn-telegram" class="boton-tg">💬 Canal de Telegram</button>
+  </header>
+
+  <div id="aviso" class="aviso oculto"></div>
+
+  <!-- MAPA -->
+  <section id="tab-mapa" class="panel activo">
+    <div class="barra">
+      <label><input type="checkbox" id="ver-sin" checked> <span class="punto sin"></span> Sin asamblea</label>
+      <label><input type="checkbox" id="ver-con" checked> <span class="punto con"></span> Con asamblea</label>
+      <label><input type="checkbox" id="ver-nodato" checked> <span class="punto nodato"></span> Sin dato</label>
+      <label><input type="checkbox" id="ver-zonas" checked> Zonas</label>
+      <label><input type="checkbox" id="ocultar-reservadas"> Ocultar zonas reservadas</label>
+      <span id="leyenda"></span>
+    </div>
+    <div id="mapa"></div>
+  </section>
+
+  <!-- ZONAS -->
+  <section id="tab-zonas" class="panel">
+    <div class="barra">
+      <span id="estado-zonas"></span>
+      <span id="contador-zonas" class="contador"></span>
+    </div>
+    <p class="ayuda">Pulsa 📄 para descargar el PDF de una zona (centros con dirección, contacto y enlaces a Google Maps y OpenStreetMap). Doble clic en una fila para verla en el mapa.</p>
+    <div id="tabla-zonas"></div>
+  </section>
+
+  <!-- RESERVAS -->
+  <section id="tab-reservas" class="panel">
+    <div class="columnas">
+      <form id="form-reserva" class="tarjeta" autocomplete="on">
+        <h2>Reservar una zona</h2>
+        <p class="ayuda">Cada equipo reserva una zona por día. Una zona solo se puede reservar una vez.</p>
+        <label>Zona <select id="r-zona" required></select></label>
+        <div id="r-zona-info" class="ayuda"></div>
+        <label>Día <select id="r-dia" required></select></label>
+        <label>Nombre del equipo <input id="r-equipo" required maxlength="60" placeholder="Ej.: IES Vallecas Norte"></label>
+        <label>Responsable (nombre o alias, será público) <input id="r-responsable" required maxlength="60"></label>
+        <fieldset class="contacto">
+          <legend>Contacto del responsable (opcional, NO se publica; solo lo ve la coordinación)</legend>
+          <label>Correo <input id="r-email" type="email" maxlength="80" placeholder="nombre@ejemplo.es"></label>
+          <label>Teléfono <input id="r-telefono" type="tel" maxlength="20" placeholder="600 123 456"></label>
+          <label>Usuario de Telegram <input id="r-telegram" maxlength="33" placeholder="@usuario"></label>
+        </fieldset>
+        <label>¿Cuántas personas? <input id="r-personas" type="number" min="1" max="50" value="2" required></label>
+        <label>¿Tenéis coche? <select id="r-coche"><option value="No">No</option><option value="Sí">Sí</option></select></label>
+        <label>Clave del equipo (para poder cancelar) <input id="r-clave" required minlength="4" maxlength="40" type="password"></label>
+        <label>Código de acceso de la campaña <input id="r-codigo" required maxlength="40" type="password"></label>
+        <button type="submit" id="r-enviar">Reservar</button>
+        <div id="r-msg" class="msg"></div>
+      </form>
+      <div class="tarjeta ancha">
+        <div class="tg-bloque">
+          <img class="tg-qr" alt="QR del canal de Telegram" src="img/telegram_qr.svg">
+          <div>
+            <h2>💬 Coordinación en Telegram</h2>
+            <p>Únete al canal para coordinarnos: <a class="tg-enlace" target="_blank" rel="noopener"></a></p>
+            <p class="ayuda">Escanea el QR con el móvil o pulsa el enlace.</p>
+          </div>
+        </div>
+        <div class="barra">
+          <h2>Reservas</h2>
+          <button id="refrescar-reservas">🔄 Actualizar</button>
+        </div>
+        <div id="tabla-reservas"></div>
+        <p class="ayuda">Para cancelar: pulsa ✖ en tu reserva e introduce la clave del equipo.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Ventana del canal de Telegram -->
+  <div id="modal-telegram" class="modal oculto" role="dialog" aria-modal="true" aria-label="Canal de Telegram">
+    <div class="modal-caja">
+      <button class="cerrar" id="cerrar-telegram" aria-label="Cerrar">✖</button>
+      <h2>💬 Canal de Telegram</h2>
+      <img class="tg-qr grande" alt="QR del canal de Telegram" src="img/telegram_qr.svg">
+      <p><a class="tg-enlace" target="_blank" rel="noopener"></a></p>
+      <p class="ayuda">Escanea el código con la cámara del móvil o pulsa el enlace para unirte.</p>
+    </div>
+  </div>
+
+  <footer>Datos: Comunidad de Madrid (centros y plantilla orgánica 25/26), menoslectivas.org (asambleas). Mapa © OpenStreetMap.</footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/zonas.js"></script>
+  <script src="js/reservas.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
