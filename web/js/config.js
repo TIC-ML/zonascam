@@ -5,16 +5,21 @@ window.CONFIG = {
 
   // URL de la aplicación web de Google Apps Script (ver doc/04_reservas.md).
   // Vacía = las reservas se desactivan y la web funciona solo como mapa y listado.
-  URL_RESERVAS: "",
+  URL_RESERVAS: "https://script.google.com/macros/s/AKfycbw4KfGFZ1X9PF4yX_mGvbm8LD1jFuMEsmpXHIy21nrhNaa4RcnXJ3_bAPOV6rDRmuDy7w/exec",
 
   // Enlace al canal de Telegram de coordinación. Si lo cambias, regenera el QR:
   //   python scripts/generar_qr.py NUEVO_ENLACE
   TELEGRAM_URL: "https://t.me/+fy5h9ckuRw42MjQ0",
 
-  // Días de la campaña. Vacío = el calendario de reserva admite cualquier lunes a jueves desde hoy hasta 21 días
-  // (propone por defecto el lunes de la semana que viene). Con fechas, solo esas.
+  // Días de la campaña. Vacío = el calendario de reserva admite cualquier lunes a viernes desde hoy hasta 21 días.
+  // Con fechas, solo esas (y entonces deben coincidir con FECHAS_VALIDAS de apps_script/Code.gs).
   // Formato: ["2026-11-23", "2026-11-24", "2026-11-25", "2026-11-26"]
   FECHAS: [],
+
+  // Fechas recomendadas para las visitas (desde/hasta, ambas incluidas). El calendario propone "desde" y, si se
+  // elige un día fuera de este intervalo, se muestra AVISO_FECHA (avisa, pero deja reservar).
+  FECHAS_RECOMENDADAS: { desde: "2026-11-23", hasta: "2026-11-26" },
+  AVISO_FECHA: "Cuidado: estas fechas son posteriores a los resultados de la primera consulta (si no hay cambios, el 27).",
 
   // Nº de centros por zona por defecto (cada equipo visita una zona en una mañana)
   CENTROS_POR_ZONA: 5,

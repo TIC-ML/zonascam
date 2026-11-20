@@ -43,7 +43,7 @@
       <input id="fm-responsable" type="search" placeholder="Responsable" size="12">
       <select id="fm-dia" title="Día de la semana de la reserva">
         <option value="">Día: todos</option>
-        <option>lunes</option><option>martes</option><option>miércoles</option><option>jueves</option>
+        <option>lunes</option><option>martes</option><option>miércoles</option><option>jueves</option><option>viernes</option>
       </select>
       <input id="fm-fecha" type="date" title="Día del calendario de la reserva">
       <input id="fm-docentes" placeholder="Docentes (ej.: >300)" size="14" title="Escribe >300, <300, >=300, <=300, 100-300 o un número exacto">
@@ -72,10 +72,11 @@
     <div class="columnas">
       <form id="form-reserva" class="tarjeta" autocomplete="on">
         <h2>Reservar una zona</h2>
-        <p class="ayuda">Cada equipo reserva una zona por día. Una zona solo se puede reservar una vez.</p>
+        <p class="ayuda">Cada equipo puede reservar <b>hasta 3 zonas el mismo día</b> (una reserva por zona). Una zona solo se puede reservar una vez.
+          Lo ideal es visitar <b>del lunes 23 al jueves 26 de noviembre</b>.</p>
         <label>Zona <select id="r-zona" required></select></label>
         <div id="r-zona-info" class="ayuda"></div>
-        <label>Día (de lunes a jueves) <input id="r-dia" type="date" required></label>
+        <label>Día (de lunes a viernes) <input id="r-dia" type="date" required></label>
         <div id="r-dia-info" class="ayuda"></div>
         <label>Nombre del equipo <input id="r-equipo" required maxlength="60" placeholder="Ej.: IES Vallecas Norte"></label>
         <label>Responsable (nombre o alias, será público) <input id="r-responsable" required maxlength="60"></label>
@@ -87,7 +88,9 @@
         </fieldset>
         <label>¿Cuántas personas? <input id="r-personas" type="number" min="1" max="50" value="2" required></label>
         <label>¿Tenéis coche? <select id="r-coche"><option value="No">No</option><option value="Sí">Sí</option></select></label>
-        <label>Clave del equipo (para poder cancelar) <input id="r-clave" required minlength="4" maxlength="40" type="password"></label>
+        <label>Clave del equipo (para poder cancelar) <input id="r-clave" required minlength="4" maxlength="40" type="password" autocomplete="new-password"></label>
+        <p class="ayuda nota-clave">🔑 <b>Inventadla vosotros</b> (mínimo 4 caracteres) y <b>apuntadla</b>: sin ella no podréis cancelar la reserva.
+          Usad la misma para todas las reservas del equipo.</p>
         <label>Código de acceso de la campaña <input id="r-codigo" required maxlength="40" type="password"></label>
         <button type="submit" id="r-enviar">Reservar</button>
         <div id="r-msg" class="msg"></div>
@@ -119,6 +122,16 @@
   <section id="tab-info" class="panel">
     <article id="info-contenido" class="tarjeta info">Cargando…</article>
   </section>
+
+  <!-- Ventana de aviso (p. ej. fecha fuera de las recomendadas); el texto lo pone js/app.js -->
+  <div id="modal-aviso" class="modal oculto" role="alertdialog" aria-modal="true" aria-labelledby="modal-aviso-texto">
+    <div class="modal-caja aviso-caja">
+      <button class="cerrar" id="cerrar-aviso" aria-label="Cerrar">✖</button>
+      <h2>⚠️ Aviso</h2>
+      <p id="modal-aviso-texto"></p>
+      <button id="modal-aviso-ok" class="boton-reservar">Entendido</button>
+    </div>
+  </div>
 
   <!-- Ventana del canal de Telegram -->
   <div id="modal-telegram" class="modal oculto" role="dialog" aria-modal="true" aria-label="Canal de Telegram">

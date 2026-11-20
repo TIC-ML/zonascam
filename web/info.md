@@ -14,7 +14,8 @@
 
 Sirve para organizar visitas a los centros educativos públicos de la Comunidad de Madrid que **todavía no tienen
 asamblea docente**. Los centros se reparten en zonas pequeñas (unos 5 centros cercanos entre sí) y cada equipo
-reserva una zona para un día, de lunes a jueves.
+reserva una zona para un día, de lunes a viernes (hasta 3 zonas el mismo día). Lo ideal es visitarlas del 23 al
+26 de noviembre.
 
 ## Qué centros aparecen
 
@@ -29,26 +30,6 @@ reserva una zona para un día, de lunes a jueves.
 - **Centros concertados y privados**: no son públicos.
 - **Universidades**: no dependen de la Consejería de Educación.
 - Los centros del listado **sin coordenadas** no se pueden situar en el mapa (cuentan en el total, pero no se ven).
-
-## Centros descartados del reparto y por qué
-
-No todos los centros sin asamblea entran en las zonas. Se quedan fuera (en el mapa se pintan en blanco, como
-"Fuera del reparto"):
-
-{{descartados}}
-
-Por qué:
-
-- Los **equipos de orientación (EOEP)** no tienen un claustro propio en un edificio al que ir: trabajan repartidos
-  por otros centros.
-- Las **escuelas infantiles y casas de niños** (0-3 años) tienen sobre todo personal educador, no claustro docente.
-- Las **aulas hospitalarias** y los **centros de adultos en prisiones** no se pueden visitar.
-- Los centros con **menos de 10 docentes** en plantilla orgánica son demasiado pequeños para una visita. Si no se
-  sabe cuántos docentes tiene un centro, se supone que son más y entra en el reparto.
-
-## Tipos de centro
-
-{{tipos}}
 
 ## De dónde salen los datos
 

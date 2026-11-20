@@ -38,7 +38,7 @@
   // Nombre del día de la semana de una fecha YYYY-MM-DD ("" si no hay fecha)
   const diaSemana = (f) => (f ? NOMBRE_DIA[new Date(f + "T12:00:00").getDay()] : "");
   // Días de la semana en los que se puede visitar (para los desplegables de filtro)
-  const DIAS_CAMPANA = ["lunes", "martes", "miércoles", "jueves"];
+  const DIAS_CAMPANA = ["lunes", "martes", "miércoles", "jueves", "viernes"];
   // Convierte una fecha de JS en texto YYYY-MM-DD (hora local)
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -83,15 +83,100 @@
     i.addEventListener("change", () => success(i.value));
     return i;
   }
-  // Columnas de filtro comunes a las tablas de zonas y reservas
-  const colTexto = (title, field, extra) => Object.assign({ title, field, minWidth: 90, headerFilter: "input", headerFilterPlaceholder: "buscar…",
-    headerFilterFunc: (h, v) => filtroTexto(h, v), formatter: (c) => esc(c.getValue()) }, extra);
-  const colNumero = (title, field) => ({ title, field, minWidth: 95, sorter: "number", hozAlign: "right", headerFilter: "input",
-    headerFilterPlaceholder: "ej.: >300", headerFilterFunc: (h, v) => filtroNumero(h, v), headerTooltip: AYUDA_NUMERO });
+  // Máximo de valores distintos de una columna para ofrecer la lista con casillas (menos de 10)
+  const MAX_OPCIONES_LISTA = 9;
+  // Cierra cualquier lista de casillas abierta
+  const cerrarListas = () => document.querySelectorAll(".panel-elegible").forEach((p) => p.remove());
+  document.addEventListener("click", cerrarListas);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarListas(); });
+
+  // Filtro de cabecera de Tabulator: caja para buscar por palabras + botón ▾ que, si la columna tiene menos de 10
+  // valores distintos, abre una lista con casillas (marcar/quitar varios a la vez). El valor del filtro es
+  // { texto, excluidos: [valores desmarcados] }. Con params.valores se fija la lista (p. ej. días de la semana).
+  function editorElegible(cell, onRendered, success, cancel, params) {
+    const columna = cell.getColumn(), campo = columna.getField(), tabla = columna.getTable();
+    const caja = document.createElement("div");
+    caja.className = "filtro-elegible";
+    caja.innerHTML = `<input type="search" placeholder="buscar…"><button type="button" class="filtro-boton" title="Elegir de la lista">▾</button>`;
+    const input = caja.querySelector("input"), boton = caja.querySelector("button");
+    let excluidos = new Set(), espera = null;
+    // Que los clics en el filtro no ordenen la columna ni cierren la lista
+    ["click", "mousedown"].forEach((ev) => caja.addEventListener(ev, (e) => e.stopPropagation()));
+
+    // Valores posibles de la columna con cuántas filas tiene cada uno (de todos los datos, no solo los filtrados)
+    function opciones() {
+      const n = new Map();
+      tabla.getData().forEach((d) => { const v = String(d[campo] ?? ""); n.set(v, (n.get(v) || 0) + 1); });
+      const lista = params && params.valores ? params.valores.slice() : [...n.keys()].sort((a, b) => a.localeCompare(b, "es"));
+      return lista.map((v) => ({ v, n: n.get(v) || 0 }));
+    }
+    // Valor actual del filtro ("" si no filtra nada)
+    const valor = () => (input.value || excluidos.size ? { texto: input.value, excluidos: [...excluidos] } : "");
+    // Tabulator lee y escribe .value del elemento del filtro (al teclear y al quitar filtros): se le da uno propio
+    Object.defineProperty(caja, "value", {
+      get: valor,
+      set: (v) => { if (!v) { input.value = ""; excluidos.clear(); marcarBoton(); } },
+    });
+    // Envía el filtro a Tabulator y actualiza el botón
+    function aplicar() {
+      success(valor());
+      marcarBoton();
+    }
+    // Muestra el botón solo si hay pocas opciones; si hay valores quitados, indica cuántos quedan
+    function marcarBoton() {
+      const total = opciones().length;
+      boton.hidden = total < 1 || total > MAX_OPCIONES_LISTA;
+      boton.classList.toggle("activo", excluidos.size > 0);
+      boton.textContent = excluidos.size ? `▾ ${total - excluidos.size}/${total}` : "▾";
+    }
+    // Abre la lista de casillas debajo del filtro
+    function abrirLista() {
+      cerrarListas();
+      const panel = document.createElement("div");
+      panel.className = "panel-elegible";
+      const ops = opciones();
+      panel.innerHTML = `<div class="pe-botones"><button type="button" data-todos="1">✔ Todos</button><button type="button" data-todos="0">✖ Ninguno</button></div>` +
+        ops.map((o, i) => `<label><input type="checkbox" data-i="${i}" ${excluidos.has(o.v) ? "" : "checked"}> ${o.v === "" ? "<i>(vacío)</i>" : esc(o.v)} <small>${o.n}</small></label>`).join("");
+      panel.addEventListener("click", (e) => e.stopPropagation());
+      panel.addEventListener("change", (e) => {
+        const o = ops[e.target.dataset.i];
+        if (e.target.checked) excluidos.delete(o.v); else excluidos.add(o.v);
+        aplicar();
+      });
+      panel.querySelectorAll("[data-todos]").forEach((b) => b.addEventListener("click", () => {
+        const todos = b.dataset.todos === "1";
+        excluidos = new Set(todos ? [] : ops.map((o) => o.v));
+        panel.querySelectorAll("input[type=checkbox]").forEach((c) => (c.checked = todos));
+        aplicar();
+      }));
+      document.body.appendChild(panel);
+      const r = caja.getBoundingClientRect();
+      panel.style.top = `${r.bottom + 2}px`;
+      panel.style.left = `${Math.max(4, Math.min(r.left, window.innerWidth - panel.offsetWidth - 8))}px`;
+    }
+
+    input.addEventListener("input", () => { clearTimeout(espera); espera = setTimeout(aplicar, 250); });
+    boton.addEventListener("click", () => (document.querySelector(".panel-elegible") ? cerrarListas() : abrirLista()));
+    // Al cambiar los datos se recalcula si hay pocas opciones; si se quitan los filtros desde fuera, se vacía
+    tabla.on("dataProcessed", marcarBoton);
+    tabla.on("dataFiltered", () => {
+      if (!columna.getHeaderFilterValue() && (input.value || excluidos.size)) { input.value = ""; excluidos.clear(); marcarBoton(); }
+    });
+    onRendered(marcarBoton);
+    return caja;
+  }
+  // Comprueba una fila contra el filtro de editorElegible (palabras y valores desmarcados)
+  const filtroElegible = (h, v) => filtroTexto(h.texto, v) && !(h.excluidos || []).includes(String(v ?? ""));
+  const vacioElegible = (h) => !h || (!h.texto && !(h.excluidos || []).length);
+
+  // Columnas de filtro comunes a todas las tablas
+  const colTexto = (title, field, extra) => Object.assign({ title, field, minWidth: 110, headerFilter: editorElegible,
+    headerFilterFunc: filtroElegible, headerFilterEmptyCheck: vacioElegible, formatter: (c) => esc(c.getValue()) }, extra);
+  const colNumero = (title, field, ejemplo) => ({ title, field, minWidth: 95, sorter: "number", hozAlign: "right", headerFilter: "input",
+    headerFilterPlaceholder: "ej.: " + (ejemplo || ">300"), headerFilterFunc: (h, v) => filtroNumero(h, v), headerTooltip: AYUDA_NUMERO });
   const colFecha = (title, field) => ({ title, field, minWidth: 150, sorter: "string", headerFilter: editorFecha,
     headerFilterFunc: (h, v) => v === h, formatter: (c) => (c.getValue() ? fmtDia(c.getValue()) : "") });
-  const colDiaSemana = (title, field) => ({ title, field, minWidth: 105, headerFilter: "list",
-    headerFilterParams: { values: DIAS_CAMPANA, clearable: true }, headerFilterFunc: "=" });
+  const colDiaSemana = (title, field) => colTexto(title, field, { headerFilterParams: { valores: DIAS_CAMPANA } });
 
   // Centros que entran en el reparto (regla en Zonas.entraEnReparto, configurable en config.js)
   function centrosAVisitar() {
@@ -168,6 +253,7 @@
       const col = { con: "#1a9641", sin: "#d7191c", nodato: "#9e9e9e", novis: "#ffffff" }[tipo];
       const m = L.circleMarker([c.lat, c.lon], { radius: 5, color: "#333", weight: 1, fillColor: col, fillOpacity: 0.9 })
         .bindPopup(() => popupCentro(c));
+      m.centro = c; // para sumar sus docentes en el contador del mapa
       m.addTo(capas[tipo]);
       marcadores[c.id] = m;
     });
@@ -264,9 +350,13 @@
     const visibles = [["#ver-sin", capas.sin], ["#ver-con", capas.con], ["#ver-nodato", capas.nodato], ["#ver-novis", capas.novis]]
       .filter(([sel]) => $(sel).checked).flatMap(([, g]) => g.getLayers());
     const vista = mapa.getBounds();
-    const enVista = visibles.filter((m) => vista.contains(m.getLatLng())).length;
-    $("#contador-centros").innerHTML = `<span><b>${visibles.length.toLocaleString("es-ES")}</b> centros en el mapa</span>` +
-      (enVista < visibles.length ? `<small>${enVista.toLocaleString("es-ES")} en esta vista del mapa</small>` : "");
+    const enVista = visibles.filter((m) => vista.contains(m.getLatLng()));
+    // Suma la plantilla orgánica de unos marcadores (los centros sin dato de plantilla no suman)
+    const docentes = (ms) => ms.reduce((s, m) => s + (m.centro.prof || 0), 0).toLocaleString("es-ES");
+    $("#contador-centros").innerHTML = `<span><b>${visibles.length.toLocaleString("es-ES")}</b> centros en el mapa · ` +
+      `<b title="Plantilla orgánica de los centros marcados (solo plazas estables; los centros sin dato no suman)">≈ ${docentes(visibles)}</b> docentes</span>` +
+      (enVista.length < visibles.length
+        ? `<small>${enVista.length.toLocaleString("es-ES")} centros y ≈ ${docentes(enVista)} docentes en esta vista del mapa</small>` : "");
   }
   // Al mover o hacer zoom cambia cuántos centros caen en la vista
   mapa.on("moveend", () => contarCentros());
@@ -295,9 +385,9 @@
         { title: "Centros", field: "n_centros", hozAlign: "right" },
         colTexto("Municipios", "municipios"),
         colTexto("Distritos", "distritos"),
-        colNumero("Km", "km_ruta"),
-        { title: "Coche", field: "coche", headerFilter: "list", headerFilterParams: { values: ["Sí", "No"], clearable: true } },
-        { title: "Estado", field: "estado", headerFilter: "list", headerFilterParams: { values: ["Libre", "Reservada"], clearable: true } },
+        colNumero("Km", "km_ruta", "<5"),
+        colTexto("Coche", "coche"),
+        colTexto("Estado", "estado"),
         colFecha("Fecha", "fecha"),
         colDiaSemana("Día", "diaSemana"),
         colTexto("Equipo", "equipo"),
@@ -419,17 +509,19 @@
     const dia = $("#r-dia");
     if (CONFIG.FECHAS && CONFIG.FECHAS.length) { dia.min = E.fechas[0]; dia.max = E.fechas[E.fechas.length - 1]; }
     else { const hoy = new Date(), fin = new Date(); fin.setDate(hoy.getDate() + 21); dia.min = iso(hoy); dia.max = iso(fin); }
-    if (!dia.value) dia.value = E.fechas[0];
+    // Por defecto, el primer día recomendado (si aún no ha pasado)
+    const rec = CONFIG.FECHAS_RECOMENDADAS || {};
+    if (!dia.value) dia.value = rec.desde && rec.desde >= dia.min ? rec.desde : E.fechas[0];
     validarDia();
     try { if (!$("#r-codigo").value) $("#r-codigo").value = localStorage.getItem("codigoCampana") || ""; } catch (e) { /* sin almacenamiento */ }
   }
-  // Comprueba el día elegido en el calendario (lunes a jueves, dentro de la campaña) y muestra el día de la semana
+  // Comprueba el día elegido en el calendario (lunes a viernes, dentro de la campaña) y muestra el día de la semana
   function validarDia() {
     const dia = $("#r-dia"), f = dia.value;
     let error = "";
     if (f) {
       const n = new Date(f + "T12:00:00").getDay();
-      if (n < 1 || n > 4) error = "Solo se puede reservar de lunes a jueves";
+      if (n < 1 || n > 5) error = "Solo se puede reservar de lunes a viernes";
       else if ((dia.min && f < dia.min) || (dia.max && f > dia.max)) error = "Esa fecha está fuera de la campaña";
       else if (CONFIG.FECHAS && CONFIG.FECHAS.length && !CONFIG.FECHAS.includes(f)) error = "Esa fecha no es un día de la campaña";
     }
@@ -438,6 +530,27 @@
     $("#r-dia-info").className = error ? "ayuda msg error" : "ayuda";
   }
   $("#r-dia").addEventListener("input", validarDia);
+  // ¿Está la fecha fuera de las fechas recomendadas (config.js → FECHAS_RECOMENDADAS)?
+  function fueraDeRecomendadas(f) {
+    const rec = CONFIG.FECHAS_RECOMENDADAS;
+    return !!(f && rec && ((rec.desde && f < rec.desde) || (rec.hasta && f > rec.hasta)));
+  }
+  // Al elegir un día válido fuera de las fechas recomendadas, avisa con una ventana (pero deja reservar)
+  $("#r-dia").addEventListener("change", () => {
+    const f = $("#r-dia").value;
+    if (f && !$("#r-dia").validationMessage && fueraDeRecomendadas(f)) mostrarAviso(CONFIG.AVISO_FECHA);
+  });
+  // Muestra una ventana de aviso con un texto y el botón "Entendido"
+  function mostrarAviso(texto) {
+    $("#modal-aviso-texto").textContent = texto;
+    $("#modal-aviso").classList.remove("oculto");
+    $("#modal-aviso-ok").focus();
+  }
+  // Cierra la ventana de aviso (botón, ✖, clic fuera o Escape)
+  const cerrarAviso = () => $("#modal-aviso").classList.add("oculto");
+  ["#modal-aviso-ok", "#cerrar-aviso"].forEach((s) => $(s).addEventListener("click", cerrarAviso));
+  $("#modal-aviso").addEventListener("click", (e) => { if (e.target.id === "modal-aviso") cerrarAviso(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarAviso(); });
   // Muestra el detalle de la zona elegida en el formulario
   $("#r-zona").addEventListener("change", () => {
     const z = E.zonasPublicadas && E.zonasPublicadas.zonas.find((x) => x.id === $("#r-zona").value);
@@ -460,7 +573,7 @@
       colTexto("Responsable", "responsable"),
       colTexto("Equipo", "equipo"),
       colNumero("Docentes", "profesores"),
-      colNumero("Km", "km_ruta"),
+      colNumero("Km", "km_ruta", "<5"),
       colTexto("Municipios", "municipios"),
       { title: "Personas", field: "personas", hozAlign: "right" },
       { title: "Coche", field: "coche" },

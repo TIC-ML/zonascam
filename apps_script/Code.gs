@@ -6,8 +6,8 @@
  * Hoja "Reservas" (se crea sola): una fila por reserva.
  * Reglas:
  *   - Una zona solo se puede reservar UNA vez en toda la campaña (de cualquier día).
- *   - Un equipo solo puede tener UNA zona por día.
- *   - Solo días de lunes a jueves dentro de los próximos 21 días (o los de FECHAS_VALIDAS).
+ *   - Un equipo puede tener hasta MAX_ZONAS_POR_DIA zonas el mismo día (3).
+ *   - Solo días de lunes a viernes dentro de los próximos 21 días (o los de FECHAS_VALIDAS).
  *   - Hace falta el código de acceso de la campaña (CODIGO_CAMPANA) para reservar/cancelar.
  *   - Para cancelar hace falta la clave que puso el equipo (se guarda cifrada con SHA-256).
  * El listado público NO devuelve email, teléfono, Telegram ni clave (solo se ven en la Hoja).
@@ -17,8 +17,10 @@
 
 // Código que se reparte por los grupos (NO lo pongas en el repositorio público, solo aquí)
 const CODIGO_CAMPANA = 'cambia-este-codigo';
-// Fechas permitidas (vacío = cualquier lunes-jueves de los próximos 21 días). Ej.: ['2026-11-23','2026-11-24']
+// Fechas permitidas (vacío = cualquier lunes-viernes de los próximos 21 días). Ej.: ['2026-11-23','2026-11-24']
 const FECHAS_VALIDAS = [];
+// Nº máximo de zonas que un mismo equipo puede reservar para el mismo día
+const MAX_ZONAS_POR_DIA = 3;
 const HOJA = 'Reservas';
 const CABECERA = ['creada', 'version', 'zona', 'dia', 'equipo', 'responsable', 'email', 'telefono', 'telegram', 'personas', 'coche', 'clave_sha256', 'estado'];
 const CLAVE_CACHE = 'listado_reservas';
@@ -71,7 +73,7 @@ function diaValido_(dia) {
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
   const dias = (d - hoy) / 86400000;
-  return d.getDay() >= 1 && d.getDay() <= 4 && dias >= 0 && dias <= 21;
+  return d.getDay() >= 1 && d.getDay() <= 5 && dias >= 0 && dias <= 21;
 }
 
 // GET ?accion=listar -> reservas públicas (sin datos de contacto ni clave), con caché de 30 s
@@ -136,7 +138,7 @@ function reservar_(d) {
   const personas = parseInt(d.personas, 10), coche = d.coche === 'Sí' ? 'Sí' : 'No';
   if (!/^Z\d{3,4}$/.test(zona)) return { ok: false, error: 'Zona no válida' };
   if (!version) return { ok: false, error: 'Falta la versión de zonas' };
-  if (!diaValido_(dia)) return { ok: false, error: 'Día no válido (solo lunes a jueves de la campaña)' };
+  if (!diaValido_(dia)) return { ok: false, error: 'Día no válido (solo de lunes a viernes, como mucho 21 días desde hoy)' };
   if (!equipo || !responsable) return { ok: false, error: 'Faltan equipo o responsable' };
   if (/[<>]/.test(equipo + responsable)) return { ok: false, error: 'No uses los caracteres < o > en equipo ni responsable' };
   if (!(personas >= 1 && personas <= 50)) return { ok: false, error: 'Nº de personas no válido' };
@@ -147,8 +149,10 @@ function reservar_(d) {
   const activas = leer_().filter((r) => r.version === version);
   const ocupada = activas.find((r) => r.zona === zona);
   if (ocupada) return { ok: false, error: 'Esa zona ya está reservada por "' + ocupada.equipo + '" (' + ocupada.dia + ')' };
-  const mismoDia = activas.find((r) => r.dia === dia && norm_(r.equipo) === norm_(equipo));
-  if (mismoDia) return { ok: false, error: 'Vuestro equipo ya tiene la zona ' + mismoDia.zona + ' ese día' };
+  const mismoDia = activas.filter((r) => r.dia === dia && norm_(r.equipo) === norm_(equipo));
+  if (mismoDia.length >= MAX_ZONAS_POR_DIA) {
+    return { ok: false, error: 'Vuestro equipo ya tiene ' + MAX_ZONAS_POR_DIA + ' zonas ese día (' + mismoDia.map((r) => r.zona).join(', ') + ')' };
+  }
   const tg = telegram ? '@' + telegram.replace(/^@/, '') : '';
   hoja_().appendRow([new Date(), version, zona, txt_(dia), txt_(equipo), txt_(responsable), txt_(email), txt_(telefono), txt_(tg), personas, coche, sha_(d.clave), 'activa']);
   return { ok: true };
