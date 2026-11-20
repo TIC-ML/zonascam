@@ -1,7 +1,13 @@
-// Lógica principal de la web pública: carga datos, pinta mapa, zonas (con PDF por zona) y reservas.
-// La versión completa (listado de centros y exportaciones) solo existe en la copia local: local/web_completa/
+// Lógica principal de la web: carga datos, pinta mapa, zonas (con PDF por zona), reservas e información.
+// La copia local completa (local/web_completa/) usa ESTE MISMO fichero: cambia las rutas con window.RUTAS_WEB
+// y añade lo suyo (listado de centros, exportaciones, simulación) en su completa.js a través de window.App.
 (function () {
   "use strict";
+
+  // Rutas de los datos (la copia local las cambia definiendo window.RUTAS_WEB antes de cargar este fichero)
+  const RUTAS = Object.assign({ centros: "data/centros.bin", zonas: "data/zonas.json", info: "info.md" }, window.RUTAS_WEB || {});
+  // Funciones que la copia local registra para ejecutarse al arrancar y en cada repintado
+  const GANCHOS = { alIniciar: [], alRefrescar: [] };
 
   const E = {
     centros: [],          // todos los centros (data/centros.bin, codificado)
@@ -29,19 +35,63 @@
   const fmtDia = (f) => { const d = new Date(f + "T12:00:00"); return `${NOMBRE_DIA[d.getDay()]} ${f.slice(8, 10)}/${f.slice(5, 7)}`; };
   // Muestra u oculta el aviso superior
   const aviso = (html) => { const a = $("#aviso"); a.innerHTML = html || ""; a.classList.toggle("oculto", !html); };
+  // Nombre del día de la semana de una fecha YYYY-MM-DD ("" si no hay fecha)
+  const diaSemana = (f) => (f ? NOMBRE_DIA[new Date(f + "T12:00:00").getDay()] : "");
+  // Días de la semana en los que se puede visitar (para los desplegables de filtro)
+  const DIAS_CAMPANA = ["lunes", "martes", "miércoles", "jueves"];
+  // Convierte una fecha de JS en texto YYYY-MM-DD (hora local)
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
   // Fechas de la campaña: las de config o lunes-jueves de la semana que viene
   function calcularFechas() {
-    if (CONFIG.FECHAS && CONFIG.FECHAS.length) return CONFIG.FECHAS;
+    if (CONFIG.FECHAS && CONFIG.FECHAS.length) return CONFIG.FECHAS.slice().sort();
     const hoy = new Date();
     const lunes = new Date(hoy);
     lunes.setDate(hoy.getDate() + (((8 - hoy.getDay()) % 7) || 7));
     return [0, 1, 2, 3].map((i) => {
       const d = new Date(lunes);
       d.setDate(lunes.getDate() + i);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      return iso(d);
     });
   }
+
+  // ---------- Filtros (tablas y mapa) ----------
+
+  // Pasa un texto a minúsculas y sin tildes para comparar
+  const norm = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  // Filtro de texto: el valor contiene lo escrito (sin distinguir mayúsculas ni tildes)
+  const filtroTexto = (buscado, valor) => !buscado || norm(valor).includes(norm(buscado).trim());
+  // Filtro numérico que entiende ">300", "<5", ">=10", "<=2.5", "=150", "100-300" o un número exacto
+  function filtroNumero(buscado, valor) {
+    const t = String(buscado ?? "").replace(/,/g, ".").replace(/\s+/g, "");
+    if (!t) return true;
+    if (valor == null || valor === "") return false;
+    const v = Number(valor);
+    const rango = t.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/);
+    if (rango) return v >= +rango[1] && v <= +rango[2];
+    const m = t.match(/^(<=|>=|<|>|=)?(\d+(?:\.\d+)?)$/);
+    if (!m) return true; // mientras se escribe (p. ej. solo ">") no se filtra
+    const n = +m[2];
+    return { "<": v < n, ">": v > n, "<=": v <= n, ">=": v >= n }[m[1]] ?? v === n;
+  }
+  // Ayuda que se muestra en los filtros numéricos
+  const AYUDA_NUMERO = "Escribe >300, <300, >=300, <=300, 100-300 o un número exacto";
+  // Filtro de cabecera de Tabulator con calendario (input type=date); devuelve la fecha YYYY-MM-DD
+  function editorFecha(cell, onRendered, success) {
+    const i = document.createElement("input");
+    i.type = "date"; i.style.width = "100%"; i.title = "Filtra por un día del calendario";
+    i.addEventListener("change", () => success(i.value));
+    return i;
+  }
+  // Columnas de filtro comunes a las tablas de zonas y reservas
+  const colTexto = (title, field, extra) => Object.assign({ title, field, minWidth: 90, headerFilter: "input", headerFilterPlaceholder: "buscar…",
+    headerFilterFunc: (h, v) => filtroTexto(h, v), formatter: (c) => esc(c.getValue()) }, extra);
+  const colNumero = (title, field) => ({ title, field, minWidth: 95, sorter: "number", hozAlign: "right", headerFilter: "input",
+    headerFilterPlaceholder: "ej.: >300", headerFilterFunc: (h, v) => filtroNumero(h, v), headerTooltip: AYUDA_NUMERO });
+  const colFecha = (title, field) => ({ title, field, minWidth: 150, sorter: "string", headerFilter: editorFecha,
+    headerFilterFunc: (h, v) => v === h, formatter: (c) => (c.getValue() ? fmtDia(c.getValue()) : "") });
+  const colDiaSemana = (title, field) => ({ title, field, minWidth: 105, headerFilter: "list",
+    headerFilterParams: { values: DIAS_CAMPANA, clearable: true }, headerFilterFunc: "=" });
 
   // Centros que entran en el reparto (regla en Zonas.entraEnReparto, configurable en config.js)
   function centrosAVisitar() {
@@ -71,13 +121,16 @@
 
   // ---------- Pestañas ----------
 
-  // Activa la pestaña indicada
+  // Activa la pestaña indicada. Las tablas se redibujan del todo al mostrarse: si se crearon con la pestaña
+  // oculta, no pudieron medir el ancho de sus columnas.
   function irA(tab) {
     document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("activa", b.dataset.tab === tab));
     document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("activo", p.id === "tab-" + tab));
     if (tab === "mapa") setTimeout(() => mapa.invalidateSize(), 50);
-    if (tab === "zonas" && tablaZonas) tablaZonas.redraw();
-    if (tab === "reservas" && tablaReservas) tablaReservas.redraw();
+    if (tab === "info") pintarInfo();
+    document.querySelectorAll(`#tab-${tab} .tabulator`).forEach((el) => {
+      (Tabulator.findTable(el) || []).forEach((tabla) => tabla.redraw(true));
+    });
   }
   document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => irA(b.dataset.tab)));
 
@@ -100,6 +153,7 @@
       ${z ? `<p>Zona: <b>${z.id}</b></p>` : ""}
       <p><a href="${gmaps(c)}" target="_blank" rel="noopener">Google Maps</a> · <a href="${osm(c)}" target="_blank" rel="noopener">OpenStreetMap</a>
       ${c.web ? ` · <a href="${esc(c.web)}" target="_blank" rel="noopener">Web</a>` : ""}</p>
+      ${c.dudas ? `<p class="ayuda">⚠️ ${esc(c.dudas)}</p>` : ""}
 </div>`;
   }
 
@@ -138,14 +192,41 @@
           : `<p><button class="boton-reservar" onclick="window.__reservar('${z.id}')">📅 Reservar esta zona</button></p>`}</div>`;
   }
 
-  // Pinta los polígonos de las zonas coloreados por nº de profesores
+  // Datos de una zona para tablas y filtros (con su reserva, si la tiene)
+  function datosZona(z, res) {
+    const r = res[z.id];
+    return {
+      id: z.id, profesores: z.profesores, n_centros: z.n_centros, municipios: z.municipios, distritos: z.distritos,
+      km_ruta: z.km_ruta, coche: z.coche ? "Sí" : "No",
+      estado: r ? "Reservada" : "Libre", equipo: r ? r.equipo : "", responsable: r ? r.responsable : "",
+      fecha: r ? r.dia : "", diaSemana: r ? diaSemana(r.dia) : "",
+      centros: z.centros.map((id) => E.porId[id].n).join(" · "),
+      ruta: Zonas.enlaceRuta(z.centros.map((id) => E.porId[id])),
+    };
+  }
+
+  // Lee la barra de filtros del mapa y devuelve una función que dice si una zona (datosZona) pasa
+  function filtroMapa() {
+    const v = (id) => $(id).value;
+    const f = { zona: v("#fm-zona"), centro: v("#fm-centro"), responsable: v("#fm-responsable"), dia: v("#fm-dia"),
+      fecha: v("#fm-fecha"), docentes: v("#fm-docentes"), km: v("#fm-km") };
+    return (d) => filtroTexto(f.zona, d.id) && filtroTexto(f.centro, d.centros) && filtroTexto(f.responsable, d.responsable) &&
+      (!f.dia || d.diaSemana === f.dia) && (!f.fecha || d.fecha === f.fecha) &&
+      filtroNumero(f.docentes, d.profesores) && filtroNumero(f.km, d.km_ruta);
+  }
+
+  // Pinta los polígonos de las zonas coloreados por nº de profesores (solo las que pasan los filtros del mapa)
   function pintarZonas() {
     capas.zonas.clearLayers();
     if (!E.zonas) return;
-    const res = reservasPorZona(), cs = cortes(E.zonas.zonas), ocultar = $("#ocultar-reservadas").checked;
+    const res = E.simulacion ? {} : reservasPorZona(), cs = cortes(E.zonas.zonas), ocultar = $("#ocultar-reservadas").checked;
+    const pasa = filtroMapa();
+    let visibles = 0;
     E.zonas.zonas.forEach((z) => {
-      const r = !E.simulacion && res[z.id];
+      const r = res[z.id];
       if (ocultar && r) return;
+      if (!pasa(datosZona(z, res))) return;
+      visibles++;
       // Las zonas reservadas se pintan en gris; las libres, por nº de docentes
       const estilo = r ? { color: "#666", weight: 2, fillColor: "#9e9e9e", fillOpacity: 0.55 }
         : { color: "#555", weight: 1, fillColor: color(z.profesores, cs), fillOpacity: 0.45 };
@@ -156,14 +237,39 @@
     $("#leyenda").innerHTML = "Docentes/zona: " + CONFIG.COLORES.map((c, i) =>
       `<i style="background:${c}"></i>${i === 0 ? "≤" + cs[0] : i === 4 ? ">" + cs[3] : ""}`).join("") +
       ` <i style="background:#9e9e9e"></i>reservada`;
+    $("#contador-mapa").textContent = `${visibles} de ${E.zonas.zonas.length} zonas`;
   }
+
+  // Filtros del mapa: repintan las zonas al escribir; "Limpiar" los vacía; "Encuadrar" centra el mapa en lo que se ve
+  document.querySelectorAll("#filtros-mapa input, #filtros-mapa select").forEach((e) => e.addEventListener("input", pintarZonas));
+  $("#fm-limpiar").addEventListener("click", () => {
+    document.querySelectorAll("#filtros-mapa input, #filtros-mapa select").forEach((e) => (e.value = ""));
+    pintarZonas();
+  });
+  $("#fm-encuadrar").addEventListener("click", () => {
+    const capasVisibles = capas.zonas.getLayers();
+    if (capasVisibles.length) mapa.fitBounds(L.featureGroup(capasVisibles).getBounds().pad(0.2));
+  });
 
   // Muestra u oculta capas según las casillas
   function sincronizarCapas() {
     [["#ver-sin", capas.sin], ["#ver-con", capas.con], ["#ver-nodato", capas.nodato], ["#ver-novis", capas.novis], ["#ver-zonas", capas.zonas]]
       .forEach(([sel, g]) => ($(sel).checked ? g.addTo(mapa) : g.remove()));
     capas.sin.eachLayer((l) => l.bringToFront && l.bringToFront());
+    contarCentros();
   }
+
+  // Cuenta los centros que se ven en el mapa (según las casillas marcadas) y cuántos caen en la vista actual
+  function contarCentros() {
+    const visibles = [["#ver-sin", capas.sin], ["#ver-con", capas.con], ["#ver-nodato", capas.nodato], ["#ver-novis", capas.novis]]
+      .filter(([sel]) => $(sel).checked).flatMap(([, g]) => g.getLayers());
+    const vista = mapa.getBounds();
+    const enVista = visibles.filter((m) => vista.contains(m.getLatLng())).length;
+    $("#contador-centros").innerHTML = `<span><b>${visibles.length.toLocaleString("es-ES")}</b> centros en el mapa</span>` +
+      (enVista < visibles.length ? `<small>${enVista.toLocaleString("es-ES")} en esta vista del mapa</small>` : "");
+  }
+  // Al mover o hacer zoom cambia cuántos centros caen en la vista
+  mapa.on("moveend", () => contarCentros());
   ["#ver-sin", "#ver-con", "#ver-nodato", "#ver-novis", "#ver-zonas"].forEach((s) => $(s).addEventListener("change", sincronizarCapas));
   $("#ocultar-reservadas").addEventListener("change", pintarZonas);
 
@@ -173,16 +279,7 @@
   // Filas de la tabla de zonas (con estado de reserva)
   function filasZonas() {
     const res = E.simulacion ? {} : reservasPorZona();
-    return E.zonas.zonas.map((z) => {
-      const r = res[z.id];
-      return {
-        id: z.id, profesores: z.profesores, n_centros: z.n_centros, municipios: z.municipios, distritos: z.distritos,
-        km_ruta: z.km_ruta, coche: z.coche ? "Sí" : "No",
-        estado: r ? "Reservada" : "Libre", equipo: r ? r.equipo : "", dia: r ? fmtDia(r.dia) : "",
-        centros: z.centros.map((id) => E.porId[id].n).join(" · "),
-        ruta: Zonas.enlaceRuta(z.centros.map((id) => E.porId[id])),
-      };
-    });
+    return E.zonas.zonas.map((z) => datosZona(z, res));
   }
   // Crea o refresca la tabla de zonas
   function pintarTablaZonas() {
@@ -190,25 +287,27 @@
     const filas = filasZonas();
     if (tablaZonas) { tablaZonas.replaceData(filas); return; }
     tablaZonas = new Tabulator("#tabla-zonas", {
-      data: filas, layout: "fitDataStretch", height: "calc(100vh - 230px)",
+      data: filas, layout: "fitData", height: "calc(100vh - 230px)",
       initialSort: [{ column: "profesores", dir: "desc" }],
       columns: [
-        { title: "Zona", field: "id", headerFilter: "input" },
-        { title: "Docentes", field: "profesores", sorter: "number", hozAlign: "right", headerFilter: "number", headerFilterPlaceholder: "≥", headerFilterFunc: ">=" },
+        colTexto("Zona", "id"),
+        colNumero("Docentes", "profesores"),
         { title: "Centros", field: "n_centros", hozAlign: "right" },
-        { title: "Municipios", field: "municipios", headerFilter: "input" },
-        { title: "Distritos", field: "distritos", headerFilter: "input" },
-        { title: "Km", field: "km_ruta", sorter: "number", hozAlign: "right", headerFilter: "number", headerFilterPlaceholder: "≤", headerFilterFunc: "<=" },
+        colTexto("Municipios", "municipios"),
+        colTexto("Distritos", "distritos"),
+        colNumero("Km", "km_ruta"),
         { title: "Coche", field: "coche", headerFilter: "list", headerFilterParams: { values: ["Sí", "No"], clearable: true } },
         { title: "Estado", field: "estado", headerFilter: "list", headerFilterParams: { values: ["Libre", "Reservada"], clearable: true } },
-        { title: "Equipo", field: "equipo", headerFilter: "input", formatter: (c) => esc(c.getValue()) },
-        { title: "Día", field: "dia", headerFilter: "input" },
+        colFecha("Fecha", "fecha"),
+        colDiaSemana("Día", "diaSemana"),
+        colTexto("Equipo", "equipo"),
+        colTexto("Responsable", "responsable"),
         { title: "", field: "estado", headerSort: false, hozAlign: "center",
           formatter: (c) => (c.getValue() === "Libre" && !E.simulacion ? '<button class="boton-reservar">📅 Reservar</button>' : ""),
           cellClick: (e, cell) => { if (e.target.tagName === "BUTTON") window.__reservar(cell.getRow().getData().id); } },
         { title: "Ruta", field: "ruta", formatter: "link", formatterParams: { label: "Google Maps", target: "_blank" }, headerSort: false },
         { title: "PDF", formatter: () => "📄", hozAlign: "center", headerSort: false, tooltip: "Descargar el PDF de esta zona", cellClick: (e, cell) => pdfZona(cell.getRow().getData().id) },
-        { title: "Centros", field: "centros", headerFilter: "input", width: 400 },
+        colTexto("Centros", "centros"),
       ],
     });
     tablaZonas.on("dataFiltered", (f, rows) => ($("#contador-zonas").textContent = `${rows.length} de ${filas.length} zonas`));
@@ -230,8 +329,18 @@
     const docentes = libres.reduce((s, z) => s + z.profesores, 0);
     const html = `<span><b>${total}</b> zonas</span><span><b>${total - libres.length}</b> reservadas</span>` +
       `<span><b>${libres.length}</b> por reservar</span>` +
-      `<span title="Suma de la plantilla orgánica de los centros de las zonas sin reservar (sin contar los centros con nº desconocido)">≈ <b>${docentes.toLocaleString("es-ES")}</b> docentes por alcanzar</span>`;
-    document.querySelectorAll(".resumen").forEach((e) => (e.innerHTML = html));
+      `<details class="nota-docentes"><summary>≈ <b>${docentes.toLocaleString("es-ES")}</b> docentes por alcanzar <span class="info">ⓘ</span></summary>
+        <div class="nota-texto">
+          <p>En realidad el número de docentes es mucho mayor porque solo hemos encontrado las plazas estables y no tiene en cuenta mucha interinidad.</p>
+          <p>La plantilla orgánica es la relación de puestos de trabajo estables creados jurídicamente y se establece en cada curso a partir de la resolución definitiva del Concurso de Traslados convocado en el curso anterior. Comprende las plazas vinculadas a cada centro.</p>
+          <p>Fecha de validación de datos: 12 de noviembre de 2025.</p>
+        </div></details>`;
+    // Al repintar se conserva si la nota estaba abierta
+    document.querySelectorAll(".resumen").forEach((e) => {
+      const abierta = !!e.querySelector("details[open]");
+      e.innerHTML = html;
+      e.querySelector("details").open = abierta;
+    });
   }
   // Texto de estado de las zonas mostradas
   function estadoZonas() {
@@ -298,41 +407,72 @@
   // ---------- Reservas ----------
 
   let tablaReservas = null;
-  // Rellena los desplegables de zona y día del formulario
+  // Rellena el desplegable de zonas libres y prepara el calendario del día (sin perder lo ya elegido)
   function rellenarFormulario() {
     const res = reservasPorZona();
     const libres = E.zonasPublicadas ? E.zonasPublicadas.zonas.filter((z) => !res[z.id]) : [];
+    const elegida = $("#r-zona").value;
     $("#r-zona").innerHTML = '<option value="">— elige zona (ordenadas por nº de docentes) —</option>' +
       libres.map((z) => `<option value="${z.id}">${z.id} · ${z.profesores} docentes · ${esc(z.municipios)}${z.distritos ? " (" + esc(z.distritos) + ")" : ""}${z.coche ? " · 🚗" : ""}</option>`).join("");
-    $("#r-dia").innerHTML = E.fechas.map((f) => `<option value="${f}">${fmtDia(f)}</option>`).join("");
-    try { $("#r-codigo").value = localStorage.getItem("codigoCampana") || ""; } catch (e) { /* sin almacenamiento */ }
+    if (libres.some((z) => z.id === elegida)) $("#r-zona").value = elegida;
+    // Calendario: con FECHAS en config, entre la primera y la última; si no, desde hoy hasta 21 días (lo que admite el backend)
+    const dia = $("#r-dia");
+    if (CONFIG.FECHAS && CONFIG.FECHAS.length) { dia.min = E.fechas[0]; dia.max = E.fechas[E.fechas.length - 1]; }
+    else { const hoy = new Date(), fin = new Date(); fin.setDate(hoy.getDate() + 21); dia.min = iso(hoy); dia.max = iso(fin); }
+    if (!dia.value) dia.value = E.fechas[0];
+    validarDia();
+    try { if (!$("#r-codigo").value) $("#r-codigo").value = localStorage.getItem("codigoCampana") || ""; } catch (e) { /* sin almacenamiento */ }
   }
+  // Comprueba el día elegido en el calendario (lunes a jueves, dentro de la campaña) y muestra el día de la semana
+  function validarDia() {
+    const dia = $("#r-dia"), f = dia.value;
+    let error = "";
+    if (f) {
+      const n = new Date(f + "T12:00:00").getDay();
+      if (n < 1 || n > 4) error = "Solo se puede reservar de lunes a jueves";
+      else if ((dia.min && f < dia.min) || (dia.max && f > dia.max)) error = "Esa fecha está fuera de la campaña";
+      else if (CONFIG.FECHAS && CONFIG.FECHAS.length && !CONFIG.FECHAS.includes(f)) error = "Esa fecha no es un día de la campaña";
+    }
+    dia.setCustomValidity(error);
+    $("#r-dia-info").textContent = error ? "✖ " + error : f ? "📅 " + fmtDia(f) : "";
+    $("#r-dia-info").className = error ? "ayuda msg error" : "ayuda";
+  }
+  $("#r-dia").addEventListener("input", validarDia);
   // Muestra el detalle de la zona elegida en el formulario
   $("#r-zona").addEventListener("change", () => {
     const z = E.zonasPublicadas && E.zonasPublicadas.zonas.find((x) => x.id === $("#r-zona").value);
     $("#r-zona-info").innerHTML = z ? z.centros.map((id) => esc(E.porId[id].n)).join(" · ") + ` — ${z.km_ruta} km` : "";
   });
-  // Pinta la tabla de reservas
+  // Pinta la tabla de reservas, ordenada por fecha (y zona dentro del mismo día), con filtros en cada columna
   function pintarReservas() {
     const v = E.zonasPublicadas && E.zonasPublicadas.version;
     const filas = E.reservas.filter((r) => r.version === v).map((r) => {
-      const z = E.zonasPublicadas.zonas.find((x) => x.id === r.zona) || {};
-      return Object.assign({}, r, { diaTxt: fmtDia(r.dia), profesores: z.profesores, municipios: z.municipios, distritos: z.distritos });
-    });
+      const z = E.zonasPublicadas.zonas.find((x) => x.id === r.zona) || { centros: [] };
+      return Object.assign({}, r, {
+        diaSemana: diaSemana(r.dia), profesores: z.profesores, km_ruta: z.km_ruta, municipios: z.municipios,
+        centros: z.centros.map((id) => (E.porId[id] || {}).n).join(" · "),
+      });
+    }).sort((a, b) => a.dia.localeCompare(b.dia) || a.zona.localeCompare(b.zona));
     const cols = [
-      { title: "Fecha", field: "dia", visible: false },
-      { title: "Día", field: "diaTxt", headerFilter: "list", headerFilterParams: { valuesLookup: true, clearable: true } },
-      { title: "Zona", field: "zona", headerFilter: "input" },
-      { title: "Docentes", field: "profesores", hozAlign: "right" },
-      { title: "Municipios", field: "municipios", headerFilter: "input" },
-      { title: "Equipo", field: "equipo", headerFilter: "input", formatter: (c) => esc(c.getValue()) },
-      { title: "Responsable", field: "responsable", headerFilter: "input", formatter: (c) => esc(c.getValue()) },
+      colFecha("Fecha", "dia"),
+      colDiaSemana("Día", "diaSemana"),
+      colTexto("Zona", "zona"),
+      colTexto("Responsable", "responsable"),
+      colTexto("Equipo", "equipo"),
+      colNumero("Docentes", "profesores"),
+      colNumero("Km", "km_ruta"),
+      colTexto("Municipios", "municipios"),
       { title: "Personas", field: "personas", hozAlign: "right" },
       { title: "Coche", field: "coche" },
-      { title: "", formatter: () => "✖", hozAlign: "center", headerSort: false, cellClick: (e, cell) => cancelar(cell.getRow().getData()) },
+      { title: "", formatter: () => "✖", hozAlign: "center", headerSort: false, tooltip: "Cancelar esta reserva", cellClick: (e, cell) => cancelar(cell.getRow().getData()) },
+      colTexto("Centros", "centros"),
     ];
-    if (tablaReservas) tablaReservas.replaceData(filas);
-    else tablaReservas = new Tabulator("#tabla-reservas", { data: filas, layout: "fitDataStretch", columns: cols, initialSort: [{ column: "dia", dir: "asc" }], placeholder: "Sin reservas todavía" });
+    if (tablaReservas) { tablaReservas.replaceData(filas); return; }
+    tablaReservas = new Tabulator("#tabla-reservas", { data: filas, layout: "fitData", columns: cols, initialSort: [{ column: "dia", dir: "asc" }], placeholder: "Sin reservas todavía" });
+    // Contador de reservas visibles (se actualiza al filtrar y al recargar datos)
+    const contar = () => ($("#contador-reservas").textContent = `${tablaReservas.getDataCount("active")} de ${tablaReservas.getDataCount()} reservas`);
+    tablaReservas.on("dataFiltered", () => setTimeout(contar));
+    tablaReservas.on("dataProcessed", contar);
   }
   // Pide la clave y cancela una reserva
   async function cancelar(r) {
@@ -389,16 +529,73 @@
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") modal.classList.add("oculto"); });
   }
 
-  // ---------- Arranque ----------
+  // ---------- Info ----------
 
-  // Repinta mapa, tablas y formulario
-  function refrescarTodo() {
-    pintarZonas(); sincronizarCapas(); pintarTablaZonas(); estadoZonas(); pintarResumen(); rellenarFormulario(); pintarReservas();
+  let textoInfo = null;
+  // Formatea un número con separador de miles
+  const num = (n) => Number(n).toLocaleString("es-ES");
+  // Pasa un nombre en MAYÚSCULAS a formato frase ("ESCUELA INFANTIL" -> "Escuela infantil")
+  const frase = (s) => { const x = String(s || "").toLowerCase().replace(/\s+/g, " ").trim(); return x.charAt(0).toUpperCase() + x.slice(1); };
+  // Calcula las piezas de la pestaña Info que se meten en los marcadores {{...}} de info.md
+  function marcadoresInfo() {
+    const cs = E.centros, enMapa = cs.filter((c) => c.lat != null);
+    const motivos = {}, tipos = {};
+    cs.forEach((c) => {
+      const m = Zonas.motivoExclusion(c, CONFIG);
+      const tp = tipos[c.t] || (tipos[c.t] = { t: c.t, te: c.te || "", total: 0, reparto: 0, asam: 0 });
+      tp.total++; if (!m) tp.reparto++; if (c.asam === true) tp.asam++;
+      if (m && m !== "Ya tiene asamblea") {
+        const clave = m.startsWith("Tipo de centro excluido") ? "tipo:" + c.t : m;
+        (motivos[clave] = motivos[clave] || { m, t: c.t, te: c.te, n: 0 }).n++;
+      }
+    });
+    const enReparto = cs.filter((c) => Zonas.entraEnReparto(c, CONFIG)).length;
+    const docentes = cs.reduce((s, c) => s + (c.prof || 0), 0);
+    const resumen = `<ul class="info-cifras">
+      <li><b>${num(cs.length)}</b> centros públicos en total (<b>${num(enMapa.length)}</b> con coordenadas en el mapa).</li>
+      <li><b>${num(cs.filter((c) => c.asam === true).length)}</b> con asamblea docente y <b>${num(cs.filter((c) => c.asam === false).length)}</b> sin asamblea${
+        cs.some((c) => c.asam == null) ? ` (<b>${num(cs.filter((c) => c.asam == null).length)}</b> sin dato)` : ""}.</li>
+      <li><b>${num(docentes)}</b> plazas de docentes en plantilla orgánica (${num(cs.filter((c) => c.prof == null).length)} centros sin dato de plantilla).</li>
+      <li><b>${num(enReparto)}</b> centros sin asamblea entran en el reparto, en <b>${num(E.zonas ? E.zonas.zonas.length : 0)}</b> zonas.</li>
+      <li><b>${num(cs.length - enReparto - cs.filter((c) => c.asam === true).length)}</b> centros sin asamblea quedan fuera del reparto (lista de motivos más abajo).</li>
+    </ul>`;
+    const lista = Object.values(motivos).sort((a, b) => b.n - a.n);
+    const descartados = `<ul class="info-cifras">${lista.map((x) => x.m.startsWith("Tipo de centro excluido")
+      ? `<li><b>${num(x.n)}</b> · ${esc(frase(x.te) || x.t)} <span class="ayuda">(${esc(x.t)})</span></li>`
+      : `<li><b>${num(x.n)}</b> · ${esc(x.m)}</li>`).join("")}</ul>`;
+    const filasTipos = Object.values(tipos).sort((a, b) => b.total - a.total);
+    const tablaTipos = `<div class="tabla-scroll"><table class="info-tabla"><thead><tr><th>Tipo</th><th>Centros</th><th>Con asamblea</th><th>En el reparto</th><th>Nombre</th></tr></thead><tbody>${
+      filasTipos.map((x) => `<tr><td>${esc(x.t)}</td><td>${num(x.total)}</td><td>${num(x.asam)}</td><td>${x.reparto ? num(x.reparto) : "—"}</td><td>${esc(frase(x.te))}</td></tr>`).join("")}</tbody></table></div>`;
+    return { resumen, descartados, tipos: tablaTipos };
+  }
+  // Pinta la pestaña Info: lee info.md (una vez), lo pasa a HTML y rellena los marcadores
+  async function pintarInfo() {
+    const caja = $("#info-contenido");
+    if (!E.centros.length) return;
+    try {
+      if (textoInfo == null) textoInfo = await (await fetch(RUTAS.info, { cache: "no-cache" })).text();
+      const m = marcadoresInfo();
+      let html = marked.parse(textoInfo);
+      html = html.replace(/<p>\s*\{\{(\w+)\}\}\s*<\/p>|\{\{(\w+)\}\}/g, (todo, a, b) => m[a || b] ?? "");
+      caja.innerHTML = html;
+      document.dispatchEvent(new CustomEvent("info-pintada"));
+    } catch (e) { caja.textContent = "No se pudo cargar la información: " + e.message; }
   }
 
-  // Descarga data/centros.bin y lo descodifica (XOR con CLAVE_DATOS + descompresión); ver scripts/preparar_datos.py
+  // ---------- Arranque ----------
+
+  // Repinta mapa, tablas y formulario (y lo que añada la copia local)
+  function refrescarTodo() {
+    pintarZonas(); sincronizarCapas(); pintarTablaZonas(); estadoZonas(); pintarResumen(); rellenarFormulario(); pintarReservas();
+    if ($("#tab-info").classList.contains("activo")) pintarInfo();
+    GANCHOS.alRefrescar.forEach((f) => f());
+  }
+
+  // Descarga los centros: JSON legible (copia local) o data/centros.bin codificado (XOR con CLAVE_DATOS + descompresión;
+  // ver scripts/preparar_datos.py)
   async function leerCentros() {
-    const b = new Uint8Array(await (await fetch("data/centros.bin")).arrayBuffer());
+    if (RUTAS.centros.endsWith(".json")) return (await fetch(RUTAS.centros)).json();
+    const b = new Uint8Array(await (await fetch(RUTAS.centros)).arrayBuffer());
     const k = new TextEncoder().encode(CONFIG.CLAVE_DATOS);
     for (let i = 0; i < b.length; i++) b[i] ^= k[i % k.length];
     const flujo = new Blob([b]).stream().pipeThrough(new DecompressionStream("deflate"));
@@ -414,7 +611,7 @@
     E.centros = d.centros;
     E.centros.forEach((c) => (E.porId[c.id] = c));
     try {
-      const r = await fetch("data/zonas.json");
+      const r = await fetch(RUTAS.zonas);
       if (r.ok) E.zonasPublicadas = await r.json();
     } catch (e) { /* aún no publicadas */ }
     const avisos = [];
@@ -428,8 +625,17 @@
     if (!Reservas.activo()) avisos.push("Reservas desactivadas: falta <code>URL_RESERVAS</code> en <code>js/config.js</code>.");
     aviso(avisos.join("<br>"));
     pintarCentros();
+    GANCHOS.alIniciar.forEach((f) => f());
     refrescarTodo();
     await cargarReservas();
   }
+
+  // Lo que necesita la copia local completa (local/web_completa/completa.js) para añadir sus pestañas
+  window.App = {
+    E, $, esc, aviso, irA, mapa, capas, marcadores, refrescarTodo, centrosAVisitar, zonaDeCentro, reservasPorZona,
+    gmaps, osm, txtAsam, txtProf, fmtDia, diaSemana, norm, filtroTexto, filtroNumero, colTexto, colNumero, colFecha, colDiaSemana,
+    tablaZonas: () => tablaZonas, tablaReservas: () => tablaReservas,
+    alIniciar: (f) => GANCHOS.alIniciar.push(f), alRefrescar: (f) => GANCHOS.alRefrescar.push(f),
+  };
   iniciar().catch((e) => aviso("Error cargando datos: " + esc(e.message)));
 })();

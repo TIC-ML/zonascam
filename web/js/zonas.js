@@ -176,14 +176,21 @@
     };
   }
 
-  // Decide si un centro entra en el reparto de zonas según la configuración (web/js/config.js):
-  // con coordenadas, sin asamblea, de un tipo no excluido y con al menos MIN_DOCENTES docentes
-  // (si no se sabe cuántos docentes tiene, se supone que son más y entra)
+  // Motivo por el que un centro NO entra en el reparto de zonas ("" si entra), según web/js/config.js.
+  // Entra si tiene coordenadas, no tiene asamblea, su tipo no está excluido y tiene al menos MIN_DOCENTES docentes
+  // (si no se sabe cuántos docentes tiene, se supone que son más y entra).
+  function motivoExclusion(c, cfg) {
+    if (c.asam === true) return "Ya tiene asamblea";
+    if (c.asam == null && !cfg.SIN_DATO_CUENTA_COMO_SIN_ASAMBLEA) return "Sin dato de asamblea";
+    if ((cfg.TIPOS_EXCLUIDOS_DEL_REPARTO || []).includes(c.t)) return "Tipo de centro excluido: " + c.t;
+    if (c.prof != null && c.prof < (cfg.MIN_DOCENTES || 0)) return "Menos de " + cfg.MIN_DOCENTES + " docentes";
+    if (c.lat == null) return "Sin coordenadas (no se puede situar en el mapa)";
+    return "";
+  }
+
+  // Decide si un centro entra en el reparto de zonas (no tiene motivo de exclusión)
   function entraEnReparto(c, cfg) {
-    return c.lat != null && c.asam !== true &&
-      (cfg.SIN_DATO_CUENTA_COMO_SIN_ASAMBLEA || c.asam === false) &&
-      !(cfg.TIPOS_EXCLUIDOS_DEL_REPARTO || []).includes(c.t) &&
-      !(c.prof != null && c.prof < (cfg.MIN_DOCENTES || 0));
+    return !motivoExclusion(c, cfg);
   }
 
   // Enlace de Google Maps con la ruta a pie/coche/transporte entre los centros (el usuario elige el modo)
@@ -191,7 +198,7 @@
     return "https://www.google.com/maps/dir/" + puntos.map((p) => p.lat + "," + p.lon).join("/");
   }
 
-  const api = { calcularZonas, enlaceRuta, entraEnReparto };
+  const api = { calcularZonas, enlaceRuta, entraEnReparto, motivoExclusion };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.Zonas = api;
 })(this);

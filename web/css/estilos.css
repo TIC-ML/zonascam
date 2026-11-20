@@ -60,3 +60,45 @@ fieldset.contacto legend { font-size: .82rem; color: #555; padding: 0 .3rem; }
 .resumen b { font-size: 1.1rem; color: #1f4e78; }
 .boton-reservar { background: #1f4e78; color: #fff; font-weight: 600; padding: .2rem .6rem; }
 .boton-reservar:hover { background: #2b6399; }
+
+/* Nota desplegable del nº de docentes en el contador */
+.nota-docentes { position: relative; }
+.nota-docentes summary { cursor: pointer; list-style: none; }
+.nota-docentes summary::-webkit-details-marker { display: none; }
+.nota-docentes .info { color: #1f4e78; font-weight: 700; }
+.nota-texto { position: absolute; z-index: 1500; top: calc(100% + .3rem); left: 0; width: 420px; max-width: calc(100vw - 2.5rem);
+  background: #fff; border: 1px solid #c9d7e8; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.15); padding: .5rem .8rem; font-size: .85rem; }
+.nota-texto p { margin: .3rem 0; }
+
+/* Barra de filtros del mapa */
+.filtros input, .filtros select { font: inherit; font-size: .88rem; padding: .25rem .35rem; border: 1px solid #bbb; border-radius: 5px; }
+.etq-filtro { font-weight: 600; font-size: .9rem; }
+.tabulator .tabulator-header-filter input[type=date] { padding: 2px; font-size: .8rem; }
+@media (max-width: 700px) { .filtros input, .filtros select { flex: 1 1 40%; } .nota-texto { position: fixed; left: 1rem; right: 1rem; top: 25vh; width: auto; } }
+
+/* Contador grande de centros visibles en el mapa (a la derecha de la barra de casillas) */
+.contador-grande { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; color: #1f4e78; font-size: 1rem; }
+.contador-grande b { font-size: 1.9rem; }
+.contador-grande small { font-size: .78rem; color: #555; }
+@media (max-width: 700px) { .contador-grande { margin-left: 0; align-items: flex-start; } }
+
+/* Pestaña Info (texto de info.md) */
+.tarjeta.info { max-width: 900px; margin: 0 auto; line-height: 1.5; }
+.info h1 { font-size: 1.4rem; margin: .2rem 0 .6rem; color: #1f4e78; }
+.info h2 { font-size: 1.1rem; margin: 1.2rem 0 .4rem; color: #1f4e78; border-bottom: 1px solid #e3e8ef; padding-bottom: .2rem; }
+.info ul { padding-left: 1.3rem; margin: .3rem 0; }
+.info li { margin: .15rem 0; }
+.info-cifras b { color: #1f4e78; }
+.tabla-scroll { overflow-x: auto; }
+.info-tabla { border-collapse: collapse; font-size: .88rem; width: 100%; }
+.info-tabla th, .info-tabla td { border-bottom: 1px solid #e3e3e3; padding: .25rem .5rem; text-align: left; white-space: nowrap; }
+.info-tabla td:nth-child(n+2):not(:last-child), .info-tabla th:nth-child(n+2):not(:last-child) { text-align: right; }
+.info-tabla td:last-child { white-space: normal; min-width: 220px; }
+.info-tabla thead th { background: #eef3f9; }
+
+/* Tablas: si no caben, scroll horizontal dentro de la tabla (nunca columnas cortadas) */
+.tabulator .tabulator-col .tabulator-col-title { white-space: nowrap; overflow: visible; }
+
+/* Copia local: lista de centros descartados bajo el texto de Info */
+.tarjeta.info-local { max-width: 1200px; margin: 1rem auto 0; }
+.info-local h2 { font-size: 1.1rem; margin: .2rem 0 .4rem; color: #1f4e78; }

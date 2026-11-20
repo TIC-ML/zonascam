@@ -11,7 +11,8 @@ window.CONFIG = {
   //   python scripts/generar_qr.py NUEVO_ENLACE
   TELEGRAM_URL: "https://t.me/+fy5h9ckuRw42MjQ0",
 
-  // Días de la campaña. Vacío = se calcula solo: lunes a jueves de la semana que viene.
+  // Días de la campaña. Vacío = el calendario de reserva admite cualquier lunes a jueves desde hoy hasta 21 días
+  // (propone por defecto el lunes de la semana que viene). Con fechas, solo esas.
   // Formato: ["2026-11-23", "2026-11-24", "2026-11-25", "2026-11-26"]
   FECHAS: [],
 

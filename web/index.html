@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Para todos los docentes de la pública</title>
-  <!-- Leaflet (mapa), Tabulator (tablas) y jsPDF (PDF de cada zona), servidos desde CDN gratuitos -->
+  <!-- Leaflet (mapa), Tabulator (tablas), jsPDF (PDF de cada zona) y marked (texto de Info en Markdown), desde CDN gratuitos -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator_simple.min.css">
   <link rel="stylesheet" href="css/estilos.css">
@@ -16,6 +16,7 @@
       <button class="tab activa" data-tab="mapa">🗺️ Mapa</button>
       <button class="tab" data-tab="zonas">🧭 Zonas</button>
       <button class="tab" data-tab="reservas">📅 Reservas</button>
+      <button class="tab" data-tab="info">ℹ️ Info</button>
     </nav>
     <button id="btn-telegram" class="boton-tg">💬 Canal de Telegram</button>
   </header>
@@ -32,7 +33,25 @@
       <label><input type="checkbox" id="ver-zonas" checked> Zonas</label>
       <label><input type="checkbox" id="ocultar-reservadas"> Ocultar zonas reservadas</label>
       <span id="leyenda"></span>
+      <span id="contador-centros" class="contador-grande" title="Centros con los tipos marcados en las casillas"></span>
     </div>
+    <!-- Filtros de zonas del mapa (los mismos que en las tablas de Zonas y Reservas) -->
+    <form class="barra filtros" id="filtros-mapa" autocomplete="off" onsubmit="return false">
+      <span class="etq-filtro">Filtrar zonas:</span>
+      <input id="fm-zona" type="search" placeholder="Zona" size="6">
+      <input id="fm-centro" type="search" placeholder="Nombre de centro" size="16">
+      <input id="fm-responsable" type="search" placeholder="Responsable" size="12">
+      <select id="fm-dia" title="Día de la semana de la reserva">
+        <option value="">Día: todos</option>
+        <option>lunes</option><option>martes</option><option>miércoles</option><option>jueves</option>
+      </select>
+      <input id="fm-fecha" type="date" title="Día del calendario de la reserva">
+      <input id="fm-docentes" placeholder="Docentes (ej.: >300)" size="14" title="Escribe >300, <300, >=300, <=300, 100-300 o un número exacto">
+      <input id="fm-km" placeholder="Km (ej.: <5)" size="10" title="Escribe >5, <5, >=5, <=5, 2-5 o un número exacto">
+      <button type="button" id="fm-limpiar">Limpiar</button>
+      <button type="button" id="fm-encuadrar" title="Centra el mapa en las zonas que se ven">🎯 Encuadrar</button>
+      <span id="contador-mapa" class="contador"></span>
+    </form>
     <div id="mapa"></div>
   </section>
 
@@ -43,7 +62,8 @@
       <span id="estado-zonas"></span>
       <span id="contador-zonas" class="contador"></span>
     </div>
-    <p class="ayuda">Pulsa 📄 para descargar el PDF de una zona (centros con dirección, contacto y enlaces a Google Maps y OpenStreetMap). Doble clic en una fila para verla en el mapa.</p>
+    <p class="ayuda">Pulsa 📄 para descargar el PDF de una zona (centros con dirección, contacto y enlaces a Google Maps y OpenStreetMap). Doble clic en una fila para verla en el mapa.
+      En Docentes y Km puedes filtrar con <b>&gt;300</b>, <b>&lt;5</b>, <b>&gt;=</b>, <b>&lt;=</b> o un rango (<b>100-300</b>).</p>
     <div id="tabla-zonas"></div>
   </section>
 
@@ -55,7 +75,8 @@
         <p class="ayuda">Cada equipo reserva una zona por día. Una zona solo se puede reservar una vez.</p>
         <label>Zona <select id="r-zona" required></select></label>
         <div id="r-zona-info" class="ayuda"></div>
-        <label>Día <select id="r-dia" required></select></label>
+        <label>Día (de lunes a jueves) <input id="r-dia" type="date" required></label>
+        <div id="r-dia-info" class="ayuda"></div>
         <label>Nombre del equipo <input id="r-equipo" required maxlength="60" placeholder="Ej.: IES Vallecas Norte"></label>
         <label>Responsable (nombre o alias, será público) <input id="r-responsable" required maxlength="60"></label>
         <fieldset class="contacto">
@@ -84,11 +105,19 @@
         <div class="barra">
           <h2>Reservas</h2>
           <button id="refrescar-reservas">🔄 Actualizar</button>
+          <span id="contador-reservas" class="contador"></span>
         </div>
+        <p class="ayuda">Ordenadas por fecha. Filtra escribiendo en la cabecera de cada columna (fecha con calendario, día de la semana,
+          zona, responsable, equipo, centros…). En Docentes y Km puedes usar <b>&gt;</b>, <b>&lt;</b> o un rango (<b>100-300</b>).</p>
         <div id="tabla-reservas"></div>
         <p class="ayuda">Para cancelar: pulsa ✖ en tu reserva e introduce la clave del equipo.</p>
       </div>
     </div>
+  </section>
+
+  <!-- INFO: el texto está en info.md (editable a mano); las cifras las calcula la web -->
+  <section id="tab-info" class="panel">
+    <article id="info-contenido" class="tarjeta info">Cargando…</article>
   </section>
 
   <!-- Ventana del canal de Telegram -->
@@ -107,6 +136,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
   <script src="js/config.js"></script>
   <script src="js/zonas.js"></script>
   <script src="js/reservas.js"></script>

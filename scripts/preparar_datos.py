@@ -32,7 +32,7 @@ SALIDA = RAIZ / "local" / "web_completa" / "data" / "centros.json"
 SALIDA_PUBLICA = RAIZ / "web" / "data" / "centros.bin"
 CONFIG_JS = RAIZ / "web" / "js" / "config.js"
 # Campos que necesita la web pública (mapa, zonas y PDF de cada zona); el resto solo vive en la copia local
-CAMPOS_PUBLICOS = ["id", "n", "t", "dir", "cp", "mun", "dis", "tel", "mail", "web", "lat", "lon", "prof", "asam"]
+CAMPOS_PUBLICOS = ["id", "n", "t", "te", "dir", "cp", "mun", "dis", "tel", "mail", "web", "lat", "lon", "prof", "asam"]
 
 
 # Comprime el texto y lo mezcla (XOR) con la clave: la web hace lo contrario en js/app.js (leerCentros)
