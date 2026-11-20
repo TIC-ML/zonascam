@@ -4,6 +4,7 @@ __pycache__/
 .DS_Store
 .claude/settings.local.json
 ~$*.xlsx
+.vscode/
 
 # Solo en local (no se publican): datos de origen, documentación, copia completa de la web y herramientas
 fuentes/

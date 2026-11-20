@@ -5,7 +5,7 @@
   "use strict";
 
   // Rutas de los datos (la copia local las cambia definiendo window.RUTAS_WEB antes de cargar este fichero)
-  const RUTAS = Object.assign({ centros: "data/centros.bin", zonas: "data/zonas.json", info: "info.md" }, window.RUTAS_WEB || {});
+  const RUTAS = Object.assign({ centros: "data/centros.bin", zonas: "data/zonas.json", info: "info.md", intro: "intro.md" }, window.RUTAS_WEB || {});
   // Funciones que la copia local registra para ejecutarse al arrancar y en cada repintado
   const GANCHOS = { alIniciar: [], alRefrescar: [] };
 
@@ -211,13 +211,29 @@
   function irA(tab) {
     document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("activa", b.dataset.tab === tab));
     document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("activo", p.id === "tab-" + tab));
-    if (tab === "mapa") setTimeout(() => mapa.invalidateSize(), 50);
+    if (tab === "mapa") setTimeout(() => { mapa.invalidateSize(); contarCentros(); }, 50);
     if (tab === "info") pintarInfo();
+    if (tab === "inicio") pintarIntro();
+    // La pestaña queda en la dirección (#mapa, #reservas…) para poder compartir el enlace
+    history.replaceState(null, "", tab === "inicio" ? location.pathname + location.search : "#" + tab);
     document.querySelectorAll(`#tab-${tab} .tabulator`).forEach((el) => {
       (Tabulator.findTable(el) || []).forEach((tabla) => tabla.redraw(true));
     });
   }
   document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => irA(b.dataset.tab)));
+  // Los enlaces a #mapa, #zonas, #reservas, #info… (p. ej. en intro.md) abren esa pestaña; #telegram abre el canal
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest && e.target.closest('a[href^="#"]');
+    if (!a) return;
+    const destino = a.getAttribute("href").slice(1);
+    if (destino === "telegram") { e.preventDefault(); $("#btn-telegram").click(); return; }
+    if (destino && $("#tab-" + destino)) { e.preventDefault(); irA(destino); window.scrollTo(0, 0); }
+  });
+  // Si cambia el # de la dirección (enlace pegado, botón Atrás…), se abre esa pestaña
+  window.addEventListener("hashchange", () => {
+    const destino = location.hash.slice(1) || "inicio";
+    if ($("#tab-" + destino) && !$("#tab-" + destino).classList.contains("activo")) irA(destino);
+  });
 
   // ---------- Mapa ----------
 
@@ -462,10 +478,10 @@
     };
     // Escribe una fila de enlaces separados por " · "
     const enlaces = (lista) => {
-      doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(31, 78, 120);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(26, 107, 60);
       let x = IZQ;
       lista.filter((e) => e[1]).forEach(([etq, url], i) => {
-        if (i) { doc.setTextColor(0); doc.text(" · ", x, y); x += doc.getTextWidth(" · "); doc.setTextColor(31, 78, 120); }
+        if (i) { doc.setTextColor(0); doc.text(" · ", x, y); x += doc.getTextWidth(" · "); doc.setTextColor(26, 107, 60); }
         doc.textWithLink(limpiar(etq), x, y, { url }); x += doc.getTextWidth(limpiar(etq));
       });
       doc.setTextColor(0); y += 5;
@@ -644,7 +660,15 @@
 
   // ---------- Info ----------
 
-  let textoInfo = null;
+  const textosMd = {};
+  // Descarga un fichero Markdown (una sola vez) y lo devuelve como texto
+  async function leerMd(ruta) {
+    if (textosMd[ruta] == null) textosMd[ruta] = await (await fetch(ruta, { cache: "no-cache" })).text();
+    return textosMd[ruta];
+  }
+  // Pasa Markdown a HTML y cambia los marcadores {{nombre}}: solos en un párrafo (bloques) o dentro de una frase
+  const mdConMarcadores = (texto, m) =>
+    marked.parse(texto).replace(/<p>\s*\{\{(\w+)\}\}\s*<\/p>|\{\{(\w+)\}\}/g, (todo, a, b) => m[a || b] ?? "");
   // Formatea un número con separador de miles
   const num = (n) => Number(n).toLocaleString("es-ES");
   // Pasa un nombre en MAYÚSCULAS a formato frase ("ESCUELA INFANTIL" -> "Escuela infantil")
@@ -686,13 +710,107 @@
     const caja = $("#info-contenido");
     if (!E.centros.length) return;
     try {
-      if (textoInfo == null) textoInfo = await (await fetch(RUTAS.info, { cache: "no-cache" })).text();
-      const m = marcadoresInfo();
-      let html = marked.parse(textoInfo);
-      html = html.replace(/<p>\s*\{\{(\w+)\}\}\s*<\/p>|\{\{(\w+)\}\}/g, (todo, a, b) => m[a || b] ?? "");
-      caja.innerHTML = html;
+      caja.innerHTML = mdConMarcadores(await leerMd(RUTAS.info), marcadoresInfo());
       document.dispatchEvent(new CustomEvent("info-pintada"));
     } catch (e) { caja.textContent = "No se pudo cargar la información: " + e.message; }
+  }
+
+  // ---------- Inicio (primera pestaña) ----------
+
+  // Cifras del momento para los marcadores de intro.md
+  function datosIntro() {
+    const cs = E.centros, visitar = centrosAVisitar();
+    const conAsam = cs.filter((c) => c.asam === true).length;
+    const zonas = E.zonas ? E.zonas.zonas : [];
+    const res = E.simulacion ? {} : reservasPorZona();
+    const reservadas = zonas.filter((z) => res[z.id]).length;
+    return {
+      cs, visitar, conAsam, nZonas: zonas.length, reservadas,
+      docentes: visitar.reduce((s, c) => s + (c.prof || 0), 0),
+    };
+  }
+  // Una tarjeta de cifra grande (el número se anima desde 0 la primera vez)
+  const cifra = (clase, n, titulo, detalle, prefijo) =>
+    `<div class="cifra ${clase}"><b>${prefijo || ""}<span class="contar" data-n="${n}">${num(n)}</span></b><span class="c-titulo">${titulo}</span><span class="c-detalle">${detalle}</span></div>`;
+  // Barra de zonas reservadas
+  function htmlProgreso(d) {
+    const pct = d.nZonas ? Math.round((d.reservadas / d.nZonas) * 100) : 0;
+    return `<div class="intro-progreso"><div class="pr-texto"><span><b>${num(d.reservadas)}</b> de ${num(d.nZonas)} zonas ya tienen equipo</span>
+      <span>faltan <b>${num(d.nZonas - d.reservadas)}</b></span></div>
+      <div class="pr-barra" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${Math.max(pct, 1)}%"></i></div></div>`;
+  }
+  // Mapa en SVG con un punto por centro: verde con asamblea, rojo por visitar, tenue fuera del reparto
+  function htmlMapaPuntos(d) {
+    const cs = d.cs.filter((c) => c.lat != null);
+    const lat0 = 40.4, k = Math.cos((lat0 * Math.PI) / 180);
+    const minLon = Math.min(...cs.map((c) => c.lon)), maxLon = Math.max(...cs.map((c) => c.lon));
+    const minLat = Math.min(...cs.map((c) => c.lat)), maxLat = Math.max(...cs.map((c) => c.lat));
+    const ancho = 1000, esc = ancho / ((maxLon - minLon) * k), alto = Math.round((maxLat - minLat) * esc);
+    const tipo = (c) => (c.asam === true ? "p-con" : Zonas.entraEnReparto(c, CONFIG) ? "p-sin" : "p-fuera");
+    // Primero los tenues y al final los rojos, para que queden encima
+    const orden = { "p-fuera": 0, "p-con": 1, "p-sin": 2 };
+    const puntos = cs.map((c) => ({ c, t: tipo(c) })).sort((a, b) => orden[a.t] - orden[b.t]).map(({ c, t }) =>
+      `<circle class="${t}" cx="${((c.lon - minLon) * k * esc).toFixed(1)}" cy="${((maxLat - c.lat) * esc).toFixed(1)}" r="${t === "p-fuera" ? 3 : 4.5}" style="--d:${Math.round(Math.random() * 1600)}ms"/>`).join("");
+    return `<figure class="hero-mapa"><svg viewBox="-10 -10 ${ancho + 20} ${alto + 20}" role="img" aria-label="Mapa de los centros públicos de la Comunidad de Madrid">${puntos}</svg>
+      <figcaption>Cada punto es un centro público · <span class="lg p-con">●</span> con asamblea · <span class="lg p-sin">●</span> por visitar</figcaption></figure>`;
+  }
+  // Todos los marcadores de intro.md
+  function marcadoresIntro() {
+    const d = datosIntro();
+    const pct = d.cs.length ? Math.round((d.conAsam / d.cs.length) * 100) : 0;
+    return {
+      n_centros: num(d.cs.length), n_con_asamblea: num(d.conAsam), n_por_visitar: num(d.visitar.length), pct_movilizado: pct,
+      n_zonas: num(d.nZonas), zonas_libres: num(d.nZonas - d.reservadas), zonas_reservadas: num(d.reservadas),
+      personas_un_dia: num(d.nZonas * 2), personas_por_dia: num(Math.round((d.nZonas * 2) / 4)), docentes_por_visitar: num(d.docentes),
+      mapa_puntos: htmlMapaPuntos(d),
+      cifras: `<div class="cifras">${cifra("verde", d.conAsam, "centros con asamblea", "ya organizados")}${
+        cifra("roja", d.visitar.length, "centros por visitar", "sin asamblea, en las zonas")}${
+        cifra("", d.nZonas, "zonas", "de unos 5 centros: una mañana")}${
+        cifra("", d.docentes, "docentes", "en los centros por visitar (plazas estables)", "≈ ")}</div>`,
+      progreso: htmlProgreso(d),
+      botones: `<div class="botones-intro"><a class="cta principal" href="#reservas">📅 Reservar una zona</a><a class="cta" href="#mapa">🗺️ Ver el mapa</a>${
+        CONFIG.TELEGRAM_URL ? '<a class="cta" href="#telegram">💬 Canal de Telegram</a>' : ""}</div>`,
+    };
+  }
+  // Pinta la pestaña de inicio a partir de intro.md: cabecera (hasta el primer "##") y una tarjeta por cada "##".
+  // En la cabecera, lo anterior al mapa de puntos va a la izquierda y lo posterior, debajo a todo el ancho.
+  // Después solo se actualiza la barra de progreso (para no cortar las animaciones).
+  let introPintada = false, introAnimada = false;
+  async function pintarIntro() {
+    const caja = $("#intro-contenido");
+    if (!E.centros.length) return;
+    if (introPintada) { const p = caja.querySelector(".intro-progreso"); if (p) p.outerHTML = htmlProgreso(datosIntro()); return; }
+    try {
+      const tmp = document.createElement("div");
+      tmp.innerHTML = mdConMarcadores(await leerMd(RUTAS.intro), marcadoresIntro());
+      const cabecera = document.createElement("header"), texto = document.createElement("div"), pie = document.createElement("div"), bloques = [];
+      cabecera.className = "intro-hero"; texto.className = "hero-texto"; pie.className = "hero-pie"; cabecera.appendChild(texto);
+      let bloque = null, trasMapa = false;
+      [...tmp.childNodes].forEach((n) => {
+        if (n.nodeName === "H2") { bloque = document.createElement("section"); bloque.className = "intro-bloque"; bloques.push(bloque); }
+        if (bloque) bloque.appendChild(n);
+        else if (n.classList && n.classList.contains("hero-mapa")) { cabecera.appendChild(n); trasMapa = true; }
+        else (trasMapa ? pie : texto).appendChild(n);
+      });
+      if (pie.textContent.trim() || pie.querySelector("*")) cabecera.appendChild(pie);
+      caja.replaceChildren(cabecera, ...bloques);
+      introPintada = true;
+      if (!introAnimada && $("#tab-inicio").classList.contains("activo")) { introAnimada = true; animarIntro(caja); }
+    } catch (e) { caja.textContent = "No se pudo cargar la introducción: " + e.message; }
+  }
+  // Animaciones de entrada: los puntos del mapa aparecen y las cifras cuentan desde 0 (salvo "movimiento reducido")
+  function animarIntro(caja) {
+    if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    caja.classList.add("animar");
+    const inicio = performance.now(), DURACION = 1600;
+    const nums = [...caja.querySelectorAll(".contar")];
+    // Avanza un fotograma de la cuenta (con frenado al final)
+    const paso = (ahora) => {
+      const x = Math.min(1, (ahora - inicio) / DURACION), f = 1 - Math.pow(1 - x, 3);
+      nums.forEach((e) => (e.textContent = num(Math.round(Number(e.dataset.n) * f))));
+      if (x < 1) requestAnimationFrame(paso);
+    };
+    requestAnimationFrame(paso);
   }
 
   // ---------- Arranque ----------
@@ -701,6 +819,7 @@
   function refrescarTodo() {
     pintarZonas(); sincronizarCapas(); pintarTablaZonas(); estadoZonas(); pintarResumen(); rellenarFormulario(); pintarReservas();
     if ($("#tab-info").classList.contains("activo")) pintarInfo();
+    if ($("#tab-inicio").classList.contains("activo")) pintarIntro();
     GANCHOS.alRefrescar.forEach((f) => f());
   }
 
@@ -719,6 +838,9 @@
   async function iniciar() {
     $("#titulo").textContent = CONFIG.TITULO;
     prepararTelegram();
+    // Si la dirección trae una pestaña (#mapa, #reservas…), se abre esa
+    const inicial = location.hash.slice(1);
+    if (inicial && $("#tab-" + inicial)) irA(inicial);
     E.fechas = calcularFechas();
     const d = await leerCentros();
     E.centros = d.centros;

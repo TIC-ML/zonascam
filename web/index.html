@@ -13,7 +13,8 @@
   <header>
     <h1 id="titulo">Para todos los docentes de la pública</h1>
     <nav>
-      <button class="tab activa" data-tab="mapa">🗺️ Mapa</button>
+      <button class="tab activa" data-tab="inicio">✊ Inicio</button>
+      <button class="tab" data-tab="mapa">🗺️ Mapa</button>
       <button class="tab" data-tab="zonas">🧭 Zonas</button>
       <button class="tab" data-tab="reservas">📅 Reservas</button>
       <button class="tab" data-tab="info">ℹ️ Info</button>
@@ -23,8 +24,13 @@
 
   <div id="aviso" class="aviso oculto"></div>
 
+  <!-- INICIO: el texto está en intro.md (editable a mano); cifras, mapa de puntos y botones los pone js/app.js -->
+  <section id="tab-inicio" class="panel activo">
+    <div id="intro-contenido" class="intro">Cargando…</div>
+  </section>
+
   <!-- MAPA -->
-  <section id="tab-mapa" class="panel activo">
+  <section id="tab-mapa" class="panel">
     <div class="barra">
       <label><input type="checkbox" id="ver-sin" checked> <span class="punto sin"></span> Sin asamblea</label>
       <label><input type="checkbox" id="ver-con" checked> <span class="punto con"></span> Con asamblea</label>
