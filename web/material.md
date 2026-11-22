@@ -19,6 +19,4 @@ Caben en A4 o A3 vertical. Para octavillas, imprime 2 o 4 por hoja (en el diálo
 **Imágenes para moverlo en redes: **
 - 🖼️ **[Un docente = un voto: cómo se vota](carteles/imagen_redes_1.png)** · imagen PNG (1414 × 2000 px, 1 MB).
   Registro en huelgaeducativamadrid.org, documentos necesarios y cómo votar con certificado digital.
-- 🖼️ **[Un docente = un voto: las tres preguntas](carteles/imagen_redes_2.png)** · imagen PNG (1414 × 2000 px, 1 MB).
-  Qué se vota en la consulta.
 
