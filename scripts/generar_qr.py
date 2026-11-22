@@ -7,8 +7,15 @@ Uso:
     python scripts/generar_qr.py https://t.me/+fy5h9ckuRw42MjQ0
     #   primer argumento: enlace de invitación del canal/grupo
 
+    # Genera el QR de otro enlace en otro fichero (SVG y, si hay ImageMagick, también PNG y JPG)
+    python scripts/generar_qr.py https://huelgaeducativamadrid.org/ web/img/qr_huelgaeducativamadrid.svg
+    #   primer argumento: enlace
+    #   segundo argumento (opcional): fichero SVG de salida; el PNG y el JPG salen al lado con el mismo nombre
+
 Necesita "segno" (pip install segno). Si no está, intenta usar OpenCV (cv2).
 """
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -50,8 +57,17 @@ def a_svg(m, margen=4):
 
 # Programa principal
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.exit("Uso: python scripts/generar_qr.py ENLACE")
-    SALIDA.parent.mkdir(parents=True, exist_ok=True)
-    SALIDA.write_text(a_svg(matriz_qr(sys.argv[1])), encoding="utf-8")
-    print(f"OK -> {SALIDA}")
+    if len(sys.argv) not in (2, 3):
+        sys.exit("Uso: python scripts/generar_qr.py ENLACE [SALIDA.svg]")
+    salida = Path(sys.argv[2]).resolve() if len(sys.argv) == 3 else SALIDA
+    salida.parent.mkdir(parents=True, exist_ok=True)
+    salida.write_text(a_svg(matriz_qr(sys.argv[1])), encoding="utf-8")
+    print(f"OK -> {salida}")
+    # Con un fichero de salida propio, saca también PNG y JPG con ImageMagick: 45 px por módulo (unos 2000 px)
+    # y sin suavizado, para que los bordes queden nítidos (el SVG mide 1 unidad por módulo; 96 ppp = 1 px)
+    if len(sys.argv) == 3 and shutil.which("convert"):
+        for ext in ("png", "jpg"):
+            destino = salida.with_suffix("." + ext)
+            subprocess.run(["convert", "+antialias", "-density", str(96 * 45), str(salida),
+                            "-quality", "95", str(destino)], check=True)
+            print(f"OK -> {destino}")

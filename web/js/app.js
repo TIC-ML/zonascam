@@ -5,7 +5,7 @@
   "use strict";
 
   // Rutas de los datos (la copia local las cambia definiendo window.RUTAS_WEB antes de cargar este fichero)
-  const RUTAS = Object.assign({ centros: "data/centros.bin", zonas: "data/zonas.json", info: "info.md", intro: "intro.md" }, window.RUTAS_WEB || {});
+  const RUTAS = Object.assign({ centros: "data/centros.bin", zonas: "data/zonas.json", info: "info.md", material: "material.md", intro: "intro.md" }, window.RUTAS_WEB || {});
   // Funciones que la copia local registra para ejecutarse al arrancar y en cada repintado
   const GANCHOS = { alIniciar: [], alRefrescar: [] };
 
@@ -213,6 +213,7 @@
     document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("activo", p.id === "tab-" + tab));
     if (tab === "mapa") setTimeout(() => { mapa.invalidateSize(); contarCentros(); }, 50);
     if (tab === "info") pintarInfo();
+    if (tab === "material") pintarMaterial();
     if (tab === "inicio") pintarIntro();
     // La pestaña queda en la dirección (#mapa, #reservas…) para poder compartir el enlace
     history.replaceState(null, "", tab === "inicio" ? location.pathname + location.search : "#" + tab);
@@ -713,6 +714,22 @@
       caja.innerHTML = mdConMarcadores(await leerMd(RUTAS.info), marcadoresInfo());
       document.dispatchEvent(new CustomEvent("info-pintada"));
     } catch (e) { caja.textContent = "No se pudo cargar la información: " + e.message; }
+  }
+
+  // ---------- Material para imprimir ----------
+
+  // Pinta la pestaña "Material para imprimir" a partir de material.md (enlaces a los ficheros de carteles/)
+  async function pintarMaterial() {
+    const caja = $("#material-contenido");
+    try {
+      caja.innerHTML = marked.parse(await leerMd(RUTAS.material));
+      // Los enlaces del .md son relativos a él (así también funcionan en la copia local) y se abren en otra pestaña
+      const base = new URL(RUTAS.material, location.href);
+      caja.querySelectorAll("a[href]:not([href^='#'])").forEach((a) => {
+        a.href = new URL(a.getAttribute("href"), base).href; a.target = "_blank"; a.rel = "noopener";
+      });
+    }
+    catch (e) { caja.textContent = "No se pudo cargar el material: " + e.message; }
   }
 
   // ---------- Inicio (primera pestaña) ----------

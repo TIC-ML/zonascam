@@ -5,7 +5,7 @@
   - El título "# ..." y lo que va antes del primer "## ..." forman la cabecera grande: lo que va antes de
     {{mapa_puntos}} sale a la izquierda del mapa y lo que va después, debajo a todo el ancho.
   - Cada "## ..." es una tarjeta. Las listas numeradas (1. 2. 3.) se ven como pasos con números grandes.
-  - Los enlaces a #mapa, #zonas, #reservas o #info abren esa pestaña. Ej.: [abre el mapa](#mapa)
+  - Los enlaces a #mapa, #zonas, #reservas, #material o #info abren esa pestaña. Ej.: [abre el mapa](#mapa)
 
   Marcadores que la web rellena con datos del momento (cada uno solo en su línea, con líneas en blanco alrededor):
     {{mapa_puntos}}  mapa con un punto por centro (verde: con asamblea; rojo: por visitar)
@@ -23,7 +23,7 @@
 # Un docente, un voto
 
 Hay unos **{{n_con_asamblea}} centros organizados en asamblea**. Pero en la Comunidad de Madrid hay
-**{{n_por_visitar}} centros públicos más** que aún no se han organizado de forma horizontal y democrática. 
+**{{n_por_visitar}} centros públicos más** que aún no se han organizado en asambleas docentes. 
 
 Para que la consulta sea un éxito
 tenemos que escuchar la voz de **todo el profesorado**, no solo de la gente ya movilizada o de los sindicatos.
@@ -56,6 +56,7 @@ cubrirlas todas en un solo día, o unas **{{personas_por_dia}} al día** de lune
 ## Qué hacer en cada centro
 
 - 🪧 **Llevar material visual**: carteles para la sala de profesorado y octavillas para buzonear en las taquillas.
+  Los tienes listos en **[Material para imprimir](#material)**.
 - 🗣️ **Hablar con quien esté**: compañeros, compañeras y personal auxiliar. Explicar por qué es importante votar.
 - 🗳️ **El mensaje**: queremos escuchar la voz de todas las docentes. No solo de la gente movilizada o de los
   sindicatos. **Un docente, un voto.**
