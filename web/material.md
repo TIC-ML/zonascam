@@ -12,7 +12,7 @@ Si podéis imprimid y llevad material a cada centro: **carteles para la sala de 
 Pulsa en cada enlace para abrirlo y descargarlo.
 
 ## Carteles y octavillas
-- 🖼️ **[Un docente = un voto: CARTEL para imprimir con QR](carteles/CARTEL_Centro_a_Centro.pdf)**
+- 🖼️ **[Un docente = un voto: CARTEL para imprimir con QR](carteles/carteles_consulta_imprimir_con_QR.pdf)**
 
 Caben en A4 o A3 vertical. Para octavillas, imprime 2 o 4 por hoja (en el diálogo de impresión: «páginas por hoja»).
 
