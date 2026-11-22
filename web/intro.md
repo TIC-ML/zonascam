@@ -51,7 +51,7 @@ cubrirlas todas en un solo día, o unas **{{personas_por_dia}} al día** de lune
 4. **Descargad el PDF de la zona** (📄 en la [lista de zonas](#zonas)): direcciones, teléfonos y la ruta en Google Maps.
 5. **¡A visitar!** Y contadlo en el canal de Telegram para que se sepa qué zonas están ya hechas.
 
-Advertencia: la entrada en los coles es más complicada porque no suele haber nadie en la sala de profes hasta el recreo. Los horarios de los coles suelen ser: de 9 a 15h en los que tienen jornada continua y en los de jornada partida de 9:00 a 12:30 h. por la mañana y de 14:30 a 16:00 h. 
+**Advertencia:** la entrada en los coles es más complicada porque no suele haber nadie en la sala de profes hasta el recreo. Los horarios de los coles suelen ser: de 9 a 15h en los que tienen jornada continua y en los de jornada partida de 9:00 a 12:30 h. por la mañana y de 14:30 a 16:00 h. 
 
 {{progreso}}
 
