@@ -1,7 +1,7 @@
 // Configuración editable de la web. Es el ÚNICO fichero que normalmente hay que tocar.
 window.CONFIG = {
   // Título que aparece en la cabecera
-  TITULO: "Para todos los docentes de la pública",
+  TITULO: "Visitar para movilizar a todos los docentes de la pública",
 
   // URL de la aplicación web de Google Apps Script (ver doc/04_reservas.md).
   // Vacía = las reservas se desactivan y la web funciona solo como mapa y listado.
