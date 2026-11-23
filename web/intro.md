@@ -22,6 +22,10 @@
 
 # Un docente, un voto
 
+**Esta web NO es la consulta digital*. La consulta oficial está en **[huelgaeducativamadrid.org](huelgaeducativamadrid.org)**. 
+
+Esta web es un proyecto para que los profes nos autoorganicemos y vayamos visitando los centros menos movilizados para tratar de movilizarlos e informarles de que esta semana pueden votar para pedir que Zarzalejo se siente a negociar.
+
 Hay unos **{{n_con_asamblea}} centros organizados en asamblea**. Pero en la Comunidad de Madrid hay
 **{{n_por_visitar}} centros públicos más** que aún no se han organizado en asambleas docentes. 
 
