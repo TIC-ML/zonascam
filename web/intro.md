@@ -20,11 +20,11 @@
   Este comentario no se ve en la web.
 -->
 
-# ¡Qué llegue la votación a todas las docentes!
+# ¡Vamos a llegar a todas las docentes!
 
 **Esta web NO es la consulta digital**. La consulta oficial está en **[huelgaeducativamadrid.org](https://huelgaeducativamadrid.org/)**. 
 
-Esta web es un proyecto para que los profes nos autoorganicemos y visitemos los centros menos activos para movilizarlos e informarles de que esta semana pueden votar para pedir que Zarzalejo se siente a negociar.
+Esta web es un proyecto para que los profes nos autoorganicemos y visitemos los centros menos activos para movilizarlos e informarles de que esta semana pueden votar para pedir que Zarzalejo se siente a negociar. Movilizamos el voto digital, centro a centro, profe a profe. 
 
 Hay unos **{{n_con_asamblea}} centros organizados en asamblea**. Pero en la Comunidad de Madrid hay
 **{{n_por_visitar}} centros públicos más** que aún no se han organizado en asambleas docentes. ¿Por qué no están movilizados? Esta información es muy importante. ¿Saben que pueden votar la petición de que Zarzalejo negocie? ¿Saben que las mejoras que se consigan serán para todas, hayan hecho huelga o no?
