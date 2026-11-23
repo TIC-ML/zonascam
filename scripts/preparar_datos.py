@@ -1,15 +1,22 @@
 """
 Genera, a partir de /fuentes:
   - local/web_completa/data/centros.json -> todos los campos, legible (copia local, NO va al repositorio)
-  - web/data/centros.bin                 -> solo los campos que muestra la web pública, comprimido y codificado
+  - web/data/centros.bin                 -> solo los campos que usa la web pública, comprimido y codificado
                                             con CLAVE_DATOS de web/js/config.js (no es un JSON legible)
 
 Entradas (en /fuentes):
-  - centros_educativos_Publicos_CAM.csv   -> listado oficial de centros (tabulado, UTM ETRS89 huso 30)
+  - tabla_centros+ml_def_EDU.ods          -> LISTADO DE REFERENCIA: qué centros hay, tipo, DAT y asamblea (columna ML).
+                                             Se ignoran las universidades.
+  - centros_educativos_Publicos_CAM.csv   -> listado oficial de centros públicos: dirección, contacto y coordenadas (UTM)
+  - centros_extra.csv                     -> centros añadidos a mano (dirección y coordenadas)
+  - centros_educativos_total.csv          -> directorio completo de la CAM (todas las titularidades): situación
+                                             (ALTA/BAJA...), titularidad, dirección, contacto y coordenadas (UTM).
+                                             Los centros que aquí estén de BAJA se quitan.
+  - fichas_centros_CAM_*.csv              -> fichas oficiales (gestiona.comunidad.madrid): titular, dirección y contacto
+  - coordenadas_geocodificadas.csv        -> (opcional) coordenadas de los centros que no las traen de otra fuente
+  - asambleas_en_duda.csv                 -> centros cuya asamblea está "En_duda" (asam = null, cuentan como sin asamblea)
   - rh20_*_docentes_org_*.xlsx            -> plantilla orgánica por centro (nº de profesores)
-  - centros_extra.csv                     -> centros públicos que no están en el CSV (añadidos a mano)
-  - asambleas_cruzadas.csv  (opcional)    -> centros con asamblea ya cruzados con su CODIGO
-                                             (lo genera scripts/cruzar_asambleas.py; solo cuenta VALIDADO=SI)
+  - asambleas_cruzadas.csv  (opcional)    -> cruce anterior con menoslectivas.org (solo informativo: columna asam_cruce)
 
 Uso:
     # Ejecuta el script desde la raíz del proyecto
@@ -31,8 +38,21 @@ FUENTES = RAIZ / "fuentes"
 SALIDA = RAIZ / "local" / "web_completa" / "data" / "centros.json"
 SALIDA_PUBLICA = RAIZ / "web" / "data" / "centros.bin"
 CONFIG_JS = RAIZ / "web" / "js" / "config.js"
-# Campos que necesita la web pública (mapa, zonas y PDF de cada zona); el resto solo vive en la copia local
-CAMPOS_PUBLICOS = ["id", "n", "t", "te", "dir", "cp", "mun", "dis", "tel", "mail", "web", "lat", "lon", "prof", "asam"]
+LISTADO_ML = FUENTES / "tabla_centros+ml_def_EDU.ods"
+# Campos que necesita la web pública (mapa, zonas, PDF de cada zona y titular para el reparto); el resto solo en local
+CAMPOS_PUBLICOS = ["id", "n", "t", "te", "dir", "cp", "mun", "dis", "tel", "mail", "web", "lat", "lon", "prof", "asam", "tit"]
+# Códigos que no son centros (se quedan en el Excel pero no en la web)
+NO_SON_CENTROS = {"28000000": "Código genérico (MADRID DIGITAL), no es un centro.",
+                  "28800010": "Registro genérico de centros docentes en el extranjero."}
+# Tipos que no van a la web (solo al Excel)
+TIPOS_SOLO_EXCEL = {"EST ADMI"}
+# Titulares que no van a la web (solo al Excel): Defensa (salvo los cedidos a la CAM), ministerios, universidades
+TITULARES_SOLO_EXCEL = {"Defensa", "Ministerio de Educación", "UAM"}
+# Situaciones del directorio completo que no van a la web (solo al Excel); las de BAJA se quitan del todo
+SITUACIONES_SOLO_EXCEL = {"EN TRÁMITE"}
+# Área territorial del listado ML -> nombre de la DAT como en el CSV oficial
+DATS = {"Capital": "Madrid-Capital", "Sur": "Madrid-Sur", "Este": "Madrid-Este", "Norte": "Madrid-Norte", "Oeste": "Madrid-Oeste"}
+
 
 
 # Comprime el texto y lo mezcla (XOR) con la clave: la web hace lo contrario en js/app.js (leerCentros)
@@ -99,70 +119,198 @@ def leer_plantilla():
     return total
 
 
-# Lee los códigos de centro con asamblea validada (si el fichero existe)
-def leer_asambleas():
-    p = FUENTES / "asambleas_cruzadas.csv"
-    if not p.exists():
-        print("AVISO: no existe fuentes/asambleas_cruzadas.csv -> asamblea = sin dato (null) en todos los centros")
-        return None
-    with open(p, encoding="utf-8") as f:
-        filas = list(csv.DictReader(f))
-    cods = {r["CODIGO"].strip() for r in filas if r.get("VALIDADO", "").strip().upper() == "SI" and r.get("CODIGO")}
-    print(f"Asambleas validadas: {len(cods)}")
-    return cods
-
-
 # Construye la dirección legible a partir de tipo de vía, nombre y número
 def direccion(r):
     partes = [str(r.get("CDTPVIA", "")).strip().capitalize(), str(r.get("DOMICILIO", "")).strip(), str(r.get("NMVIAL", "")).strip()]
     return " ".join(p for p in partes if p and p.lower() != "nan").strip()
 
 
-# Programa principal: une fuentes y escribe el JSON compacto para la web
+# Texto limpio: quita nulos, "nan" y guiones sueltos
+def txt(v):
+    v = "" if v is None or (isinstance(v, float) and math.isnan(v)) else str(v).strip()
+    return "" if v.lower() in ("nan", "-") else v
+
+
+# Lee el listado de referencia (ML): un registro por centro, sin universidades
+def leer_listado_ml():
+    v = pd.read_excel(LISTADO_ML, engine="odf", dtype=str).fillna("")
+    v = v[~v["TIPO DE CENTRO"].str.upper().str.contains("UNIV")]
+    v["CODIGO CENTRO"] = v["CODIGO CENTRO"].str.strip()
+    print(f"Listado ML: {len(v)} centros (sin universidades), {(v['ML'].str.upper().str.strip().isin(['SI', 'SÍ'])).sum()} con asamblea")
+    return {r["CODIGO CENTRO"]: r for _, r in v.iterrows()}
+
+
+# Lee la ficha oficial más reciente de cada centro (titular, dirección, teléfono, correo)
+def leer_fichas():
+    ficheros = sorted(glob.glob(str(FUENTES / "fichas_centros_CAM_*.csv")))
+    if not ficheros:
+        sys.exit("No encuentro fuentes/fichas_centros_CAM_*.csv")
+    f = pd.read_csv(ficheros[-1], dtype=str).fillna("")
+    print(f"Fichas oficiales: {len(f)} ({Path(ficheros[-1]).name})")
+    return {r["codigo"]: r.to_dict() for _, r in f.iterrows()}
+
+
+# Lee una lista de códigos de un CSV de /fuentes (devuelve {codigo: fila}); vacío si no existe
+def leer_codigos(nombre, col="CODIGO", filtro=None):
+    p = FUENTES / nombre
+    if not p.exists():
+        return {}
+    with open(p, encoding="utf-8") as fh:
+        filas = [r for r in csv.DictReader(fh) if r.get(col) and (filtro is None or filtro(r))]
+    return {r[col].strip(): r for r in filas}
+
+
+# Pasa "Rozas de Madrid, Las" a "Las Rozas de Madrid"
+def municipio_natural(m):
+    p = m.rsplit(", ", 1)
+    return f"{p[1]} {p[0]}" if len(p) == 2 and len(p[1]) <= 3 else m
+
+
+# Etiqueta corta del titular a partir de la ficha oficial
+def etiqueta_titular(titular, mun, cedido):
+    t = titular.upper()
+    if t.startswith("COMUN") or not t:
+        return "CAM"
+    if t.startswith("AYUNTAMIENTO"):
+        return "Ayto. " + municipio_natural(mun)
+    if "PATRONATO" in t:
+        return "Patronato municipal"
+    if "DEFENSA" in t:
+        return "Defensa (cedido a CAM)" if cedido else "Defensa"
+    if "EDUCACION" in t or "EDUCACIÓN" in t:
+        return "Ministerio de Educación"
+    if "UNIVERSIDAD AUTONOMA" in t:
+        return "UAM"
+    return titular.title()
+
+
+# Separa la dirección de la ficha ("calle x 10, 28016, Madrid (Chamartín)") en dirección y código postal
+def direccion_ficha(d):
+    m = re.match(r"^(.*?)[,\s]*\b(28\d{3})\b", d)
+    if not m:
+        return d[:1].upper() + d[1:], ""
+    s = m.group(1).strip(" ,")
+    return s[:1].upper() + s[1:], m.group(2)
+
+
+# Programa principal: une fuentes y escribe el JSON completo (local) y el codificado (web pública)
 def main():
     profes = leer_plantilla()
-    asambleas = leer_asambleas()
-    c = pd.read_csv(FUENTES / "centros_educativos_Publicos_CAM.csv", sep="\t", dtype=str).fillna("")
-    centros = []
-    for _, r in c.iterrows():
+    ml = leer_listado_ml()
+    fichas = leer_fichas()
+    en_duda = leer_codigos("asambleas_en_duda.csv")
+    cruce = leer_codigos("asambleas_cruzadas.csv", filtro=lambda r: r.get("VALIDADO", "").strip().upper() == "SI")
+    geo = leer_codigos("coordenadas_geocodificadas.csv")
+    cam = {r["CODIGO"]: r for _, r in pd.read_csv(FUENTES / "centros_educativos_Publicos_CAM.csv", sep="\t", dtype=str).fillna("").iterrows()}
+    extra = {r["CODIGO"]: r for _, r in pd.read_csv(FUENTES / "centros_extra.csv", dtype=str).fillna("").iterrows()} \
+        if (FUENTES / "centros_extra.csv").exists() else {}
+    total = {r["CODIGO"]: r for _, r in pd.read_csv(FUENTES / "centros_educativos_total.csv", sep=";", dtype=str,
+                                                    encoding="utf-8-sig").fillna("").iterrows()}
+    codigos = list(dict.fromkeys(list(cam) + list(extra) + list(ml)))
+    centros, bajas = [], []
+    for cod in codigos:
+        a, e, m, f, d = cam.get(cod), extra.get(cod), ml.get(cod), fichas.get(cod, {}), total.get(cod)
+        situacion = d["SITUACIÓN"].strip() if d is not None else ""
+        # Los centros de BAJA en el directorio completo se quitan
+        if situacion == "BAJA":
+            bajas.append(f"{cod} {a['CENTRO'] if a is not None else ''}")
+            continue
+        dudas, notas = [], []
+        if d is None:
+            notas.append("No aparece en el directorio completo (centros_educativos_total.csv): posiblemente es más reciente.")
+        elif situacion != "ALTA":
+            notas.append(f"Situación en el directorio completo: {situacion}.")
+        if d is not None and d["TITULARIDAD"] != "PÚBLICO":
+            dudas.append(f"El directorio completo dice titularidad {d['TITULARIDAD']} (titular {d['TITULAR']}); la ficha oficial dice pública.")
+        # Datos básicos: el CSV oficial manda en nombre y contacto; el listado ML en tipo, DAT y asamblea
+        if a is not None:
+            n, t, te, dr, cp, mun, dis = a["CENTRO"], a["TIPO_ABRV"], a["TIPO_EXT"], direccion(a), a["CDPOSTAL"], a["MUNICIPIO"], a["DISTRITO"]
+            dat, tel, web, mail, origen = a["DAT"], a["TELEFONO"], a["WEB"], a["E_MAIL"], "CSV CAM"
+        elif e is not None:
+            n, t, te, dr, cp, mun, dis = e["CENTRO"], e["TIPO_ABRV"], e["TIPO_EXT"], e["DOMICILIO"], e["CDPOSTAL"], e["MUNICIPIO"], e["DISTRITO"]
+            dat, tel, web, mail, origen = "", "", "", "", "Añadido"
+            if e["DUDAS"]:
+                dudas.append(e["DUDAS"])
+        elif d is not None:
+            # Centro nuevo del listado ML que sí está en el directorio completo: nombre del ML, el resto del directorio
+            n, t, te = m["CENTRO"].replace("Nş", "Nº").strip(), d["TIPO_ABRV"], d["TIPO_EXT"]
+            dr, cp, mun, dis = direccion(d), d["CDPOSTAL"], d["MUNICIPIO"], d["DISTRITO"]
+            dat, tel, web, mail, origen = d["DAT"], d["TELEFONO"], d["WEB"], d["E_MAIL"], "Listado ML"
+        else:
+            # Centro nuevo que solo está en el listado ML: dirección y contacto de su ficha oficial
+            dr, cp = direccion_ficha(txt(f.get("direccion")))
+            n, t, te = m["CENTRO"].replace("Nş", "Nº").strip(), m["TIPO DE CENTRO"].strip(), txt(f.get("tipo_ficha"))
+            mun, dis, dat = txt(m["MUNICIPIO"]), txt(m["DISTRITO"]), ""
+            tel = re.split(r"\s*/\s*", txt(f.get("telefono")))[0]
+            mail = txt(f.get("correo"))
+            web = "https://www.educa.madrid.org/" + mail.split("@")[0] if mail.endswith("@educa.madrid.org") else ""
+            origen = "Listado ML"
+        if m is not None:
+            t_ml = m["TIPO DE CENTRO"].strip()
+            if t_ml and t_ml != t:
+                notas.append(f"Tipo actualizado según el listado ML (antes {t}).")
+                t, te = t_ml, txt(f.get("tipo_ficha")) or te
+            dat = DATS.get(m["AREA TERRITORIAL"].strip(), dat)
+        elif situacion == "ALTA":
+            notas.append("No aparece en el listado ML, pero el directorio completo lo da de ALTA.")
+        else:
+            notas.append("En_duda si sigue en activo: no aparece en el listado ML (tabla_centros+ml_def_EDU.ods).")
+        # Coordenadas: CSV oficial (UTM), añadidos a mano, directorio completo (UTM) o geocodificadas
         lat = lon = None
-        try:
-            lat, lon = utm_a_latlon(float(r["UTM_X"]), float(r["UTM_Y"]))
-        except ValueError:
-            pass
-        dudas = []
-        if r["CODIGO"] not in profes:
-            dudas.append("Sin plantilla orgánica: nº de docentes desconocido.")
+        if a is not None:
+            try:
+                lat, lon = utm_a_latlon(float(a["UTM_X"]), float(a["UTM_Y"]))
+            except ValueError:
+                pass
+        elif e is not None and e["LAT"]:
+            lat, lon = float(e["LAT"]), float(e["LON"])
+        if lat is None and d is not None:
+            try:
+                lat, lon = utm_a_latlon(float(d["UTM_X"]), float(d["UTM_Y"]))
+            except ValueError:
+                pass
+        if lat is None and cod in geo and geo[cod].get("LAT"):
+            lat, lon = float(geo[cod]["LAT"]), float(geo[cod]["LON"])
+            if geo[cod].get("DUDAS"):
+                dudas.append(geo[cod]["DUDAS"])
         if lat is None:
-            dudas.append("Sin coordenadas.")
+            dudas.append("Sin coordenadas (pendiente de geocodificar).")
+        # Titular (ficha oficial); los de Defensa que ya estaban en el listado de la CAM son de uso cedido
+        tit_ficha = txt(f.get("titular")) or (d["TITULAR"] if d is not None else "")
+        tit = etiqueta_titular(tit_ficha, mun, cedido=(a is not None or e is not None))
+        if tit == "Defensa (cedido a CAM)":
+            notas.append("Titular según la ficha oficial: Ministerio de Defensa; lo gestiona la CAM.")
+        if not tit_ficha:
+            notas.append("Sin ficha oficial ni titular en el directorio: titular supuesto CAM.")
+        elif not f:
+            notas.append("Sin ficha oficial: titular del directorio completo.")
+        # Asamblea: el listado ML manda; los de asambleas_en_duda.csv quedan "En_duda" (null)
+        if cod in en_duda:
+            asam = None
+            dudas.append("Asamblea En_duda: " + en_duda[cod].get("MOTIVO", ""))
+        else:
+            asam = m is not None and m["ML"].strip().upper() in ("SI", "SÍ")
+        if profes.get(cod) is None:
+            dudas.append("Sin plantilla orgánica de la CAM: nº de docentes desconocido." +
+                         (" Centro municipal: su profesorado no es de la Consejería." if tit.startswith(("Ayto", "Patronato")) else ""))
+        web_pub = (cod not in NO_SON_CENTROS and t not in TIPOS_SOLO_EXCEL and tit not in TITULARES_SOLO_EXCEL
+                   and situacion not in SITUACIONES_SOLO_EXCEL)
+        if cod in NO_SON_CENTROS:
+            notas.append(NO_SON_CENTROS[cod])
         centros.append(dict(
-            id=r["CODIGO"], n=r["CENTRO"], t=r["TIPO_ABRV"], te=r["TIPO_EXT"],
-            dir=direccion(r), cp=r["CDPOSTAL"], mun=r["MUNICIPIO"], dis=r["DISTRITO"], dat=r["DAT"],
-            tel=r["TELEFONO"], web=r["WEB"], mail=r["E_MAIL"], lat=lat, lon=lon,
-            prof=profes.get(r["CODIGO"]), origen="CSV CAM", tit="CAM", dudas=" ".join(dudas)))
-    extra = FUENTES / "centros_extra.csv"
-    if extra.exists():
-        e = pd.read_csv(extra, dtype=str).fillna("")
-        for _, r in e.iterrows():
-            lat = float(r["LAT"]) if r["LAT"] else None
-            lon = float(r["LON"]) if r["LON"] else None
-            dudas = r["DUDAS"] + ("" if lat is not None else " Sin coordenadas: pendiente de geocodificar.")
-            centros.append(dict(
-                id=r["CODIGO"], n=r["CENTRO"], t=r["TIPO_ABRV"], te=r["TIPO_EXT"], dir=r["DOMICILIO"],
-                cp=r["CDPOSTAL"], mun=r["MUNICIPIO"], dis=r["DISTRITO"], dat="", tel="", web="", mail="",
-                lat=lat, lon=lon, prof=profes.get(r["CODIGO"]), origen="Añadido", tit=r["TITULARIDAD_REAL"],
-                dudas=dudas.strip()))
-    for x in centros:
-        x["asam"] = None if asambleas is None else (x["id"] in asambleas)
+            id=cod, n=n, t=t, te=te, dir=dr, cp=cp, mun=mun, dis=dis, dat=dat, tel=tel, web=web, mail=mail,
+            lat=lat, lon=lon, prof=profes.get(cod), origen=origen, tit=tit, asam=asam,
+            asam_cruce=cod in cruce, en_web=web_pub, dudas=" ".join(dudas), notas=" ".join(notas)))
+    print(f"Quitados por estar de BAJA en el directorio completo: {len(bajas)}" + (" -> " + ", ".join(bajas) if bajas else ""))
     SALIDA.parent.mkdir(parents=True, exist_ok=True)
-    meta = dict(generado=pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"), total=len(centros),
-                con_coordenadas=sum(1 for x in centros if x["lat"] is not None),
-                asambleas_cargadas=asambleas is not None)
+    web_c = [x for x in centros if x["en_web"]]
+    meta = dict(generado=pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"), total=len(web_c), total_excel=len(centros),
+                con_coordenadas=sum(1 for x in web_c if x["lat"] is not None), asambleas_cargadas=True)
     SALIDA.write_text(json.dumps(dict(meta=meta, centros=centros), ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"OK -> {SALIDA.relative_to(RAIZ)}  {meta}")
-    # Versión pública: solo los campos necesarios y codificada
-    publicos = [{k: x[k] for k in CAMPOS_PUBLICOS} for x in centros]
-    meta_pub = dict(generado=meta["generado"], asambleas_cargadas=meta["asambleas_cargadas"])
+    # Versión pública: solo los centros de la web, con los campos necesarios y codificada
+    publicos = [{k: x[k] for k in CAMPOS_PUBLICOS} for x in web_c]
+    meta_pub = dict(generado=meta["generado"], asambleas_cargadas=True)
     texto = json.dumps(dict(meta=meta_pub, centros=publicos), ensure_ascii=False, separators=(",", ":"))
     SALIDA_PUBLICA.write_bytes(codificar(texto, leer_clave()))
     print(f"OK -> {SALIDA_PUBLICA.relative_to(RAIZ)}  ({SALIDA_PUBLICA.stat().st_size // 1024} KB)")

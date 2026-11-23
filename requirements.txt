@@ -1,3 +1,4 @@
 pandas>=2.0
 openpyxl>=3.1
+odfpy>=1.4  # para leer el listado ML (.ods)
 segno>=1.6  # solo para regenerar el QR de Telegram

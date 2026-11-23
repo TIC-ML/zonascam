@@ -183,6 +183,7 @@
     if (c.asam === true) return "Ya tiene asamblea";
     if (c.asam == null && !cfg.SIN_DATO_CUENTA_COMO_SIN_ASAMBLEA) return "Sin dato de asamblea";
     if ((cfg.TIPOS_EXCLUIDOS_DEL_REPARTO || []).includes(c.t)) return "Tipo de centro excluido: " + c.t;
+    if ((cfg.TITULARES_EXCLUIDOS_DEL_REPARTO || []).includes(c.tit)) return "Titular excluido: " + c.tit;
     if (c.prof != null && c.prof < (cfg.MIN_DOCENTES || 0)) return "Menos de " + cfg.MIN_DOCENTES + " docentes";
     if (c.lat == null) return "Sin coordenadas (no se puede situar en el mapa)";
     return "";

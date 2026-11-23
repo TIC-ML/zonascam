@@ -28,7 +28,7 @@
   // Enlace de OpenStreetMap a un punto
   const osm = (c) => (c.lat != null ? `https://www.openstreetmap.org/?mlat=${c.lat}&mlon=${c.lon}#map=18/${c.lat}/${c.lon}` : "");
   // Texto del estado de asamblea
-  const txtAsam = (a) => (a === true ? "Sí" : a === false ? "No" : "Sin dato");
+  const txtAsam = (a) => (a === true ? "Sí" : a === false ? "No" : "En duda");
   // Escapa texto para meterlo en HTML
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   // Formatea una fecha YYYY-MM-DD como "lunes 23/11"
@@ -692,7 +692,7 @@
     const resumen = `<ul class="info-cifras">
       <li><b>${num(cs.length)}</b> centros públicos en total (<b>${num(enMapa.length)}</b> con coordenadas en el mapa).</li>
       <li><b>${num(cs.filter((c) => c.asam === true).length)}</b> con asamblea docente y <b>${num(cs.filter((c) => c.asam === false).length)}</b> sin asamblea${
-        cs.some((c) => c.asam == null) ? ` (<b>${num(cs.filter((c) => c.asam == null).length)}</b> sin dato)` : ""}.</li>
+        cs.some((c) => c.asam == null) ? ` (<b>${num(cs.filter((c) => c.asam == null).length)}</b> en duda)` : ""}.</li>
       <li><b>${num(docentes)}</b> plazas de docentes en plantilla orgánica (${num(cs.filter((c) => c.prof == null).length)} centros sin dato de plantilla).</li>
       <li><b>${num(enReparto)}</b> centros sin asamblea entran en el reparto, en <b>${num(E.zonas ? E.zonas.zonas.length : 0)}</b> zonas.</li>
       <li><b>${num(cs.length - enReparto - cs.filter((c) => c.asam === true).length)}</b> centros sin asamblea quedan fuera del reparto (lista de motivos más abajo).</li>
@@ -860,7 +860,8 @@
     if (inicial && $("#tab-" + inicial)) irA(inicial);
     E.fechas = calcularFechas();
     const d = await leerCentros();
-    E.centros = d.centros;
+    // Los registros marcados en_web=false (edificios administrativos, códigos genéricos) solo van al Excel
+    E.centros = d.centros.filter((c) => c.en_web !== false);
     E.centros.forEach((c) => (E.porId[c.id] = c));
     try {
       const r = await fetch(RUTAS.zonas);
