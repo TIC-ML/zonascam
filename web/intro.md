@@ -20,7 +20,7 @@
   Este comentario no se ve en la web.
 -->
 
-# Un docente, un voto
+# Que llegue la votación a todos los docentes
 
 **Esta web NO es la consulta digital**. La consulta oficial está en **[huelgaeducativamadrid.org](https://huelgaeducativamadrid.org/)**. 
 
