@@ -22,7 +22,7 @@
 
 # Un docente, un voto
 
-**Esta web NO es la consulta digital*. La consulta oficial está en **[huelgaeducativamadrid.org](huelgaeducativamadrid.org)**. 
+**Esta web NO es la consulta digital*. La consulta oficial está en **[huelgaeducativamadrid.org](https://huelgaeducativamadrid.org/)**. 
 
 Esta web es un proyecto para que los profes nos autoorganicemos y vayamos visitando los centros menos movilizados para tratar de movilizarlos e informarles de que esta semana pueden votar para pedir que Zarzalejo se siente a negociar.
 
