@@ -30,13 +30,14 @@ window.CONFIG = {
   // Tipos de centro (columna "Tipo") que NO entran en el reparto de zonas. En el mapa se pintan en blanco ("fuera del reparto").
   // EOEP: equipos de orientación; EEI, EEI-CN y ZNAS.CN.: escuelas infantiles y casas de niños;
   // A. HOSP. y CEPA.EP: aulas en hospitales y prisiones (no visitables); EST ADMI: edificios administrativos;
-  // C. DOC. MILITAR y C. PUB. ENS. DEPORT.: centros del Ministerio de Defensa
+  // C. DOC. MILITAR y C. PUB. ENS. DEPORT.: centros del Ministerio de Defensa; E MUN.MUSICA, E MUN. MUS-DANZA y E.M.EPA:
+  // escuelas municipales de música, danza y adultos; CREACIM y CREI: centros regionales
   TIPOS_EXCLUIDOS_DEL_REPARTO: ["EOEP GENERAL", "EOEP ATEN-TEMPR", "EOEP ESPECÍFICO", "EEI", "EEI-CN", "ZNAS.CN.", "A. HOSP.", "CEPA.EP",
-    "EST ADMI", "C. DOC. MILITAR", "C. PUB. ENS. DEPORT."],
+    "EST ADMI", "C. DOC. MILITAR", "C. PUB. ENS. DEPORT.", "E MUN.MUSICA", "E MUN. MUS-DANZA", "E.M.EPA", "CREACIM", "CREI"],
 
-  // Titulares (columna "Titular") que NO entran en el reparto. Los de los ayuntamientos SÍ entran (la política
-  // educativa es de la CAM) y "Defensa (cedido a CAM)" también (son colegios e institutos que gestiona la CAM).
-  TITULARES_EXCLUIDOS_DEL_REPARTO: ["Defensa", "Ministerio de Educación"],
+  // Titulares (columna "Titular") que SÍ entran en el reparto: solo la CAM y los centros de Defensa cedidos a la CAM
+  // (colegios e institutos que gestiona la CAM). Los municipales y el resto quedan fuera.
+  TITULARES_DEL_REPARTO: ["CAM", "Defensa (cedido a CAM)"],
 
   // Mínimo de docentes (plantilla orgánica) para que un centro entre en el reparto.
   // Si no se conoce el nº de docentes del centro, se supone que son más y entra.

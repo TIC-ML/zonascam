@@ -79,7 +79,10 @@ def main():
             "NUM_PROFESORES": c["prof"], "ASAMBLEA": txt_asamblea(c["asam"]),
             "ASAMBLEA_CRUCE_ANTERIOR": "Sí" if c.get("asam_cruce") else "No",
             "EN_REPARTO": "Sí" if r.get("reparto") else "No", "MOTIVO_EXCLUSION": r.get("motivo", ""),
-            "ZONA": r.get("zona", ""), "EN_WEB": "Sí" if c.get("en_web", True) else "No", "ORIGEN": c["origen"],
+            "ZONA": r.get("zona", ""), "SIN_HORARIO_MANANA": "Sí" if r.get("sin_manana") else "",
+            "HORARIO_MATUTINO": c.get("hm", ""), "HORARIO_VESPERTINO": c.get("hv", ""), "HORARIO_NOCTURNO": c.get("hn", ""),
+            "FUENTE_HORARIO": c.get("hfuente", ""), "JORNADA_CONTINUA": c.get("jc", ""), "JORNADA_PARTIDA": c.get("jp", ""),
+            "EN_WEB": "Sí" if c.get("en_web", True) else "No", "EN_WEB_PUBLICA": "Sí" if c.get("pub") else "No", "ORIGEN": c["origen"],
             "DUDAS": c["dudas"], "NOTAS": c.get("notas", ""),
         })
     df = pd.DataFrame(filas).join(csv_cam, on="CODIGO")
@@ -99,6 +102,10 @@ def main():
                        "Los centros municipales no tienen plantilla de la CAM."),
         ("Reparto", f"Reglas de web/js/config.js. Zonas: versión {rep['version']} ({rep['porZona']} centros/zona), "
                     "calculada con scripts/generar_zonas.js."),
+        ("Horario", "HORARIO_*: consultado a mano (fuentes/horarios_centros.csv, de momento solo conservatorios); vacío = sin dato, "
+                    "se supone matutino. JORNADA_*: ficha oficial (fuentes/jornadas_centros_CAM_*.csv)."),
+        ("Web pública", "EN_WEB_PUBLICA = No: titular distinto de la CAM, o escuelas infantiles, casas de niños, escuelas "
+                        "municipales de música/danza/adultos, CREACIM y CREI (TIPOS_SOLO_LOCAL de preparar_datos.py)."),
         ("Contacto", "Teléfono, web y correo son los institucionales del centro (datos públicos)."),
     ], columns=["Tema", "Detalle"])
     RESULTADOS.mkdir(exist_ok=True)

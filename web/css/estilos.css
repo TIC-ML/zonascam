@@ -236,3 +236,9 @@ input[type=checkbox] { accent-color: var(--verde-osc); }
   .intro-bloque { padding: 1.1rem 1rem; }
   .cifra b { font-size: 2rem; }
 }
+/* Centros sin horario de mañana dentro de una zona (las visitas son por la mañana) */
+.sin-manana { color: #c00000; font-weight: 600; }
+/* Buscador dentro de la lista de casillas de un filtro (cuando hay muchas opciones) */
+.panel-elegible .pe-buscar { width: 100%; margin-bottom: .3rem; }
+/* Contador grande de centros de la tabla (lo que se exporta) */
+.contador-lista { font-size: 1.05rem; padding: .2rem .6rem; border-radius: 6px; background: var(--verde-claro); }

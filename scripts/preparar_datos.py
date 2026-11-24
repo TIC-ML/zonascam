@@ -17,6 +17,8 @@ Entradas (en /fuentes):
   - asambleas_en_duda.csv                 -> centros cuya asamblea está "En_duda" (asam = null, cuentan como sin asamblea)
   - rh20_*_docentes_org_*.xlsx            -> plantilla orgánica por centro (nº de profesores)
   - asambleas_cruzadas.csv  (opcional)    -> cruce anterior con menoslectivas.org (solo informativo: columna asam_cruce)
+  - jornadas_centros_CAM_*.csv            -> jornada continua / partida de la ficha oficial (scripts/descargar_jornadas.py)
+  - horarios_centros.csv                  -> horario matutino / vespertino / nocturno consultado a mano (editable)
 
 Uso:
     # Ejecuta el script desde la raíz del proyecto
@@ -40,7 +42,13 @@ SALIDA_PUBLICA = RAIZ / "web" / "data" / "centros.bin"
 CONFIG_JS = RAIZ / "web" / "js" / "config.js"
 LISTADO_ML = FUENTES / "tabla_centros+ml_def_EDU.ods"
 # Campos que necesita la web pública (mapa, zonas, PDF de cada zona y titular para el reparto); el resto solo en local
-CAMPOS_PUBLICOS = ["id", "n", "t", "te", "dir", "cp", "mun", "dis", "tel", "mail", "web", "lat", "lon", "prof", "asam", "tit"]
+CAMPOS_PUBLICOS = ["id", "n", "t", "te", "dir", "cp", "mun", "dis", "tel", "mail", "web", "lat", "lon", "prof", "asam", "tit",
+                   "hm", "hv", "hn"]
+# Tipos que no van a la web pública (sí a la copia local y al Excel): escuelas infantiles y casas de niños, escuelas
+# municipales de música/danza y de adultos, CREACIM y CREI
+TIPOS_SOLO_LOCAL = {"CREACIM", "CREI", "E MUN. MUS-DANZA", "E MUN.MUSICA", "E.M.EPA", "EEI", "EEI-CN", "ZNAS.CN."}
+# Titulares que sí van a la web pública: la CAM y los centros de Defensa cuya gestión está cedida a la CAM
+TITULARES_PUBLICOS = {"CAM", "Defensa (cedido a CAM)"}
 # Códigos que no son centros (se quedan en el Excel pero no en la web)
 NO_SON_CENTROS = {"28000000": "Código genérico (MADRID DIGITAL), no es un centro.",
                   "28800010": "Registro genérico de centros docentes en el extranjero."}
@@ -201,6 +209,9 @@ def main():
     en_duda = leer_codigos("asambleas_en_duda.csv")
     cruce = leer_codigos("asambleas_cruzadas.csv", filtro=lambda r: r.get("VALIDADO", "").strip().upper() == "SI")
     geo = leer_codigos("coordenadas_geocodificadas.csv")
+    horarios = leer_codigos("horarios_centros.csv")
+    fj = sorted(glob.glob(str(FUENTES / "jornadas_centros_CAM_*.csv")))
+    jornadas = leer_codigos(Path(fj[-1]).name) if fj else {}
     cam = {r["CODIGO"]: r for _, r in pd.read_csv(FUENTES / "centros_educativos_Publicos_CAM.csv", sep="\t", dtype=str).fillna("").iterrows()}
     extra = {r["CODIGO"]: r for _, r in pd.read_csv(FUENTES / "centros_extra.csv", dtype=str).fillna("").iterrows()} \
         if (FUENTES / "centros_extra.csv").exists() else {}
@@ -297,23 +308,34 @@ def main():
                    and situacion not in SITUACIONES_SOLO_EXCEL)
         if cod in NO_SON_CENTROS:
             notas.append(NO_SON_CENTROS[cod])
+        # En la web pública solo los centros de titularidad CAM (o cedidos a la CAM) y sin los tipos de TIPOS_SOLO_LOCAL
+        pub = web_pub and t not in TIPOS_SOLO_LOCAL and tit in TITULARES_PUBLICOS
+        # Horario (consultado a mano) y jornada (ficha oficial): "x" si lo tiene, "" si no o sin dato
+        h, j = horarios.get(cod, {}), jornadas.get(cod, {})
+        marca = lambda fila, col: "x" if fila.get(col, "").strip().lower() == "x" else ""
+        if h.get("DUDAS"):
+            dudas.append("Horario: " + h["DUDAS"].strip())
         centros.append(dict(
             id=cod, n=n, t=t, te=te, dir=dr, cp=cp, mun=mun, dis=dis, dat=dat, tel=tel, web=web, mail=mail,
             lat=lat, lon=lon, prof=profes.get(cod), origen=origen, tit=tit, asam=asam,
-            asam_cruce=cod in cruce, en_web=web_pub, dudas=" ".join(dudas), notas=" ".join(notas)))
+            asam_cruce=cod in cruce, en_web=web_pub, pub=pub,
+            hm=marca(h, "MATUTINO"), hv=marca(h, "VESPERTINO"), hn=marca(h, "NOCTURNO"), hfuente=h.get("FUENTE", "").strip(),
+            jc=marca(j, "JORNADA_CONTINUA"), jp=marca(j, "JORNADA_PARTIDA"),
+            dudas=" ".join(dudas), notas=" ".join(notas)))
     print(f"Quitados por estar de BAJA en el directorio completo: {len(bajas)}" + (" -> " + ", ".join(bajas) if bajas else ""))
     SALIDA.parent.mkdir(parents=True, exist_ok=True)
     web_c = [x for x in centros if x["en_web"]]
     meta = dict(generado=pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"), total=len(web_c), total_excel=len(centros),
+                total_publica=sum(1 for x in web_c if x["pub"]),
                 con_coordenadas=sum(1 for x in web_c if x["lat"] is not None), asambleas_cargadas=True)
     SALIDA.write_text(json.dumps(dict(meta=meta, centros=centros), ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"OK -> {SALIDA.relative_to(RAIZ)}  {meta}")
-    # Versión pública: solo los centros de la web, con los campos necesarios y codificada
-    publicos = [{k: x[k] for k in CAMPOS_PUBLICOS} for x in web_c]
+    # Versión pública: solo los centros de la web pública (pub), con los campos necesarios y codificada
+    publicos = [{k: x[k] for k in CAMPOS_PUBLICOS} for x in web_c if x["pub"]]
     meta_pub = dict(generado=meta["generado"], asambleas_cargadas=True)
     texto = json.dumps(dict(meta=meta_pub, centros=publicos), ensure_ascii=False, separators=(",", ":"))
     SALIDA_PUBLICA.write_bytes(codificar(texto, leer_clave()))
-    print(f"OK -> {SALIDA_PUBLICA.relative_to(RAIZ)}  ({SALIDA_PUBLICA.stat().st_size // 1024} KB)")
+    print(f"OK -> {SALIDA_PUBLICA.relative_to(RAIZ)}  ({len(publicos)} centros, {SALIDA_PUBLICA.stat().st_size // 1024} KB)")
 
 
 if __name__ == "__main__":

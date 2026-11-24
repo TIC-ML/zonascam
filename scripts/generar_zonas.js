@@ -44,8 +44,9 @@ zonas.zonas.forEach((z) => z.centros.forEach((id) => (zonaDe[id] = z.id)));
 // Reparto por centro (también los que solo van al Excel, con su motivo)
 const reparto = {};
 datos.centros.forEach((c) => {
-  const motivo = c.en_web === false ? "No está en la web (no es un centro visitable, titular no CAM/municipal o en trámite)" : Zonas.motivoExclusion(c, CONFIG);
-  reparto[c.id] = { reparto: !motivo, motivo, zona: zonaDe[c.id] || "" };
+  const motivo = c.en_web === false ? "No está en la web (no es un centro visitable, titular Defensa/ministerio o en trámite)" : Zonas.motivoExclusion(c, CONFIG);
+  // sin_manana: entra en una zona pero no tiene horario de mañana (se añade de más a su zona)
+  reparto[c.id] = { reparto: !motivo, motivo, zona: zonaDe[c.id] || "", sin_manana: !motivo && Zonas.sinManana(c) };
 });
 fs.writeFileSync(path.join(RAIZ, "local/web_completa/data/reparto.json"),
   JSON.stringify({ version: zonas.version, generado: zonas.generado, porZona: zonas.porZona, reparto }));

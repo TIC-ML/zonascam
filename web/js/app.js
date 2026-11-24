@@ -92,7 +92,8 @@
 
   // Filtro de cabecera de Tabulator: caja para buscar por palabras + botón ▾ que, si la columna tiene menos de 10
   // valores distintos, abre una lista con casillas (marcar/quitar varios a la vez). El valor del filtro es
-  // { texto, excluidos: [valores desmarcados] }. Con params.valores se fija la lista (p. ej. días de la semana).
+  // { texto, excluidos: [valores desmarcados] }. Con params.valores se fija la lista (p. ej. días de la semana);
+  // con params.todas se ofrece la lista aunque haya muchos valores; params.etiqueta(v) da el texto de cada opción.
   function editorElegible(cell, onRendered, success, cancel, params) {
     const columna = cell.getColumn(), campo = columna.getField(), tabla = columna.getTable();
     const caja = document.createElement("div");
@@ -125,7 +126,7 @@
     // Muestra el botón solo si hay pocas opciones; si hay valores quitados, indica cuántos quedan
     function marcarBoton() {
       const total = opciones().length;
-      boton.hidden = total < 1 || total > MAX_OPCIONES_LISTA;
+      boton.hidden = total < 1 || (total > MAX_OPCIONES_LISTA && !(params && params.todas));
       boton.classList.toggle("activo", excluidos.size > 0);
       boton.textContent = excluidos.size ? `▾ ${total - excluidos.size}/${total}` : "▾";
     }
@@ -135,18 +136,27 @@
       const panel = document.createElement("div");
       panel.className = "panel-elegible";
       const ops = opciones();
-      panel.innerHTML = `<div class="pe-botones"><button type="button" data-todos="1">✔ Todos</button><button type="button" data-todos="0">✖ Ninguno</button></div>` +
-        ops.map((o, i) => `<label><input type="checkbox" data-i="${i}" ${excluidos.has(o.v) ? "" : "checked"}> ${o.v === "" ? "<i>(vacío)</i>" : esc(o.v)} <small>${o.n}</small></label>`).join("");
+      const etq = (v) => (params && params.etiqueta ? params.etiqueta(v) : v);
+      // Con muchas opciones se añade un buscador que oculta las que no coinciden
+      const buscar = ops.length > 12 ? `<input type="search" class="pe-buscar" placeholder="buscar en la lista…">` : "";
+      panel.innerHTML = buscar + `<div class="pe-botones"><button type="button" data-todos="1">✔ Todos</button><button type="button" data-todos="0">✖ Ninguno</button></div>` +
+        ops.map((o, i) => `<label><input type="checkbox" data-i="${i}" ${excluidos.has(o.v) ? "" : "checked"}> ${o.v === "" ? "<i>(vacío)</i>" : esc(etq(o.v))} <small>${o.n}</small></label>`).join("");
+      const caja2 = panel.querySelector(".pe-buscar");
+      if (caja2) caja2.addEventListener("input", () => panel.querySelectorAll("label").forEach((l) => (l.hidden = !filtroTexto(caja2.value, l.textContent))));
       panel.addEventListener("click", (e) => e.stopPropagation());
       panel.addEventListener("change", (e) => {
+        if (e.target.dataset.i == null) return;
         const o = ops[e.target.dataset.i];
         if (e.target.checked) excluidos.delete(o.v); else excluidos.add(o.v);
         aplicar();
       });
       panel.querySelectorAll("[data-todos]").forEach((b) => b.addEventListener("click", () => {
         const todos = b.dataset.todos === "1";
-        excluidos = new Set(todos ? [] : ops.map((o) => o.v));
-        panel.querySelectorAll("input[type=checkbox]").forEach((c) => (c.checked = todos));
+        // Si hay texto en el buscador de la lista, solo se marcan/desmarcan las opciones visibles
+        panel.querySelectorAll("label:not([hidden]) input[type=checkbox]").forEach((c) => {
+          c.checked = todos;
+          if (todos) excluidos.delete(ops[c.dataset.i].v); else excluidos.add(ops[c.dataset.i].v);
+        });
         aplicar();
       }));
       document.body.appendChild(panel);
@@ -252,6 +262,8 @@
     return `<div class="popup"><h3>${esc(c.t)} ${esc(c.n)}</h3>
       <p>${esc(c.dir)}${c.cp ? ", " + esc(c.cp) : ""} · ${esc(c.mun)}${c.dis ? " (" + esc(c.dis) + ")" : ""}</p>
       <p><b>${txtProf(c.prof)}</b> docentes (plantilla orgánica) · Asamblea: <span class="etq ${etq}">${txtAsam(c.asam)}</span></p>
+      ${Zonas.txtHorario(c) ? `<p${Zonas.sinManana(c) ? ' class="sin-manana"' : ""}>Horario: <b>${esc(Zonas.txtHorario(c))}</b>${
+        Zonas.sinManana(c) ? " (sin horario de mañana)" : ""}</p>` : ""}
       ${z ? `<p>Zona: <b>${z.id}</b></p>` : ""}
       <p><a href="${gmaps(c)}" target="_blank" rel="noopener">Google Maps</a> · <a href="${osm(c)}" target="_blank" rel="noopener">OpenStreetMap</a>
       ${c.web ? ` · <a href="${esc(c.web)}" target="_blank" rel="noopener">Web</a>` : ""}</p>
@@ -286,9 +298,12 @@
     const cs = z.centros.map((id) => E.porId[id]);
     const r = res[z.id];
     return `<div class="popup"><h3>Zona ${z.id} · ${z.profesores} docentes</h3>
-      <p>${z.n_centros} centros · ${esc(z.municipios)}${z.distritos ? " (" + esc(z.distritos) + ")" : ""}</p>
+      <p>${z.n_centros} centros${(z.sin_manana || []).length ? ` (<span class="sin-manana">${z.sin_manana.length} sin horario de mañana</span>)` : ""}
+        · ${esc(z.municipios)}${z.distritos ? " (" + esc(z.distritos) + ")" : ""}</p>
       <p>Recorrido aprox. ${z.km_ruta} km en línea recta${z.coche ? " · 🚗 mejor con coche" : ""}</p>
-      <ol>${cs.map((c) => `<li>${esc(c.t)} ${esc(c.n)} (${txtProf(c.prof)}) – <a href="${gmaps(c)}" target="_blank" rel="noopener">mapa</a></li>`).join("")}</ol>
+      <ol>${cs.map((c) => Zonas.sinManana(c)
+        ? `<li class="sin-manana">${esc(c.t)} ${esc(c.n)} (${txtProf(c.prof)}) · horario: ${esc(Zonas.txtHorario(c))} – <a href="${gmaps(c)}" target="_blank" rel="noopener">mapa</a></li>`
+        : `<li>${esc(c.t)} ${esc(c.n)} (${txtProf(c.prof)}) – <a href="${gmaps(c)}" target="_blank" rel="noopener">mapa</a></li>`).join("")}</ol>
       <p><a href="${Zonas.enlaceRuta(cs)}" target="_blank" rel="noopener">🧭 Ruta en Google Maps</a> · <button onclick="window.__pdf('${z.id}')">📄 PDF de la zona</button></p>
       ${r ? `<p><span class="etq res">Reservada: ${esc(r.equipo)} · ${fmtDia(r.dia)}</span></p>`
           : E.simulacion ? `<p class="ayuda">Simulación: no se puede reservar.</p>`
@@ -490,12 +505,21 @@
     const cs = z.centros.map((cid) => E.porId[cid]);
     texto(`Zona ${z.id}`, 18, true); y += 1;
     texto(`${z.municipios}${z.distritos ? " (" + z.distritos + ")" : ""}`, 11);
-    texto(`${z.n_centros} centros · recorrido aprox. ${z.km_ruta} km en línea recta${z.coche ? " · mejor con coche" : ""}`, 10);
+    const nSin = (z.sin_manana || []).length;
+    texto(`${z.n_centros} centros${nSin ? ` (${nSin} sin horario de mañana, en rojo)` : ""} · recorrido aprox. ${z.km_ruta} km en línea recta${z.coche ? " · mejor con coche" : ""}`, 10);
     y += 1; enlaces([["Ruta completa en Google Maps", Zonas.enlaceRuta(cs)]]); y += 3;
     cs.forEach((c, i) => {
       sitio(32);
       doc.setDrawColor(200); doc.line(IZQ, y - 4, IZQ + ANCHO, y - 4);
-      texto(`${i + 1}. ${c.t} ${c.n}`, 12, true); y += 1;
+      // Los centros sin horario de mañana van en rojo, con su horario
+      if (Zonas.sinManana(c)) {
+        doc.setTextColor(200, 0, 0);
+        texto(`${i + 1}. ${c.t} ${c.n}`, 12, true);
+        texto(`Sin horario de mañana. Horario: ${Zonas.txtHorario(c)}`, 10, true);
+        doc.setTextColor(0); y += 1;
+      } else {
+        texto(`${i + 1}. ${c.t} ${c.n}`, 12, true); y += 1;
+      }
       texto(`${c.dir}${c.cp ? ", " + c.cp : ""} ${c.mun}${c.dis ? " (" + c.dis + ")" : ""}`, 10);
       const contacto = [c.tel && "Tel.: " + c.tel, c.mail && "Correo: " + c.mail].filter(Boolean).join("   ");
       if (contacto) texto(contacto, 10);

@@ -2,6 +2,9 @@
 // - Cada zona tiene exactamente N centros (si no cuadra, algunas tienen N-1).
 // - En cada corte se elige la dirección y el punto de corte que dejan los centros más juntos.
 // - Como cada zona vive en su propia "celda" delimitada por cortes rectos, las zonas NO se superponen.
+// - Se supone que las visitas son por la mañana: el reparto se hace solo con los centros con horario matutino (o sin
+//   dato de horario). Los que no tienen horario de mañana se añaden después a la zona en cuya celda caen, así que
+//   una zona puede tener 6, 7 o más centros, pero siempre N (o N-1) con horario de mañana.
 // Funciona en el navegador y en Node (para pruebas): no depende de ninguna librería.
 (function (raiz) {
   "use strict";
@@ -107,6 +110,29 @@
     particionar(P, der, kg - mejor.k1, rg - mejor.r1, n, recortar(celda, mejor.u, mejor.t, -1), salida);
   }
 
+  // Horario conocido de un centro como texto ("mañana, tarde"); "" si no hay dato
+  function txtHorario(c) {
+    return [c.hm && "mañana", c.hv && "tarde", c.hn && "noche"].filter(Boolean).join(", ");
+  }
+
+  // true si se sabe el horario del centro y no tiene horario de mañana (no se puede contar con él en una visita matinal)
+  function sinManana(c) {
+    return !!(c.hv || c.hn) && !c.hm;
+  }
+
+  // true si el punto p está dentro del polígono convexo "poli" (o en su borde)
+  function dentroConvexo(poli, p) {
+    let signo = 0;
+    for (let i = 0; i < poli.length; i++) {
+      const a = poli[i], b = poli[(i + 1) % poli.length];
+      const cr = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+      if (cr === 0) continue;
+      if (signo === 0) signo = Math.sign(cr);
+      else if (Math.sign(cr) !== signo) return false;
+    }
+    return true;
+  }
+
   /**
    * Calcula las zonas.
    * centros: [{id, lat, lon, prof, mun, dis, ...}]  (solo los que hay que visitar)
@@ -116,18 +142,30 @@
   function calcularZonas(centros, opciones) {
     const o = Object.assign({ porZona: 5, semilla: 42, kmCoche: 6 }, opciones || {});
     // Orden estable por código para que el resultado sea reproducible
-    const cs = centros.filter((c) => c.lat != null && c.lon != null).sort((a, b) => String(a.id).localeCompare(String(b.id)));
-    if (!cs.length) return { version: "", zonas: [] };
+    // Primero los de mañana (los que se reparten) y al final los que no tienen horario de mañana
+    const conCoord = centros.filter((c) => c.lat != null && c.lon != null).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const manana = conCoord.filter((c) => !sinManana(c)), extra = conCoord.filter(sinManana);
+    const cs = manana.concat(extra);
+    if (!manana.length) return { version: "", zonas: [] };
     const lat0 = cs.reduce((s, c) => s + c.lat, 0) / cs.length;
     const P = cs.map((c) => proyectar(c.lat, c.lon, lat0));
     const n = Math.max(1, o.porZona);
-    const k = Math.ceil(cs.length / n);
-    const r = k * n - cs.length; // zonas que tendrán n-1 centros
+    const k = Math.ceil(manana.length / n);
+    const r = k * n - manana.length; // zonas que tendrán n-1 centros
     // Celda inicial: rectángulo que contiene todos los centros con 5 km de margen
     const xs = P.map((p) => p[0]), ys = P.map((p) => p[1]), M = 5000;
     const x0 = Math.min(...xs) - M, x1 = Math.max(...xs) + M, y0 = Math.min(...ys) - M, y1 = Math.max(...ys) + M;
     const grupos = [];
-    particionar(P, cs.map((_, i) => i), k, r, n, [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], grupos);
+    particionar(P, manana.map((_, i) => i), k, r, n, [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], grupos);
+    // Cada centro sin horario de mañana va a la zona en cuya celda cae (o, si no cae en ninguna, a la más cercana)
+    for (let i = manana.length; i < cs.length; i++) {
+      let g = grupos.find((x) => dentroConvexo(x.celda, P[i]));
+      if (!g) {
+        const dist = (x) => Math.min(...x.idx.map((j) => d2(P[j], P[i])));
+        g = grupos.reduce((a, b) => (dist(b) < dist(a) ? b : a));
+      }
+      g.idx.push(i);
+    }
     // Construye cada zona con sus estadísticas, ruta y polígono
     const inv = (x, y) => [y / 110540, x / (111320 * Math.cos((lat0 * Math.PI) / 180))];
     let zonas = grupos.map(({ idx, celda }) => {
@@ -152,6 +190,7 @@
       return {
         centros: ms.map((c) => c.id),
         n_centros: ms.length,
+        sin_manana: ms.filter(sinManana).map((c) => c.id),
         profesores: ms.reduce((s, c) => s + (c.prof || 0), 0),
         municipios: [...new Set(ms.map((c) => c.mun))].join(", "),
         distritos: [...new Set(ms.map((c) => c.dis).filter(Boolean))].join(", "),
@@ -183,7 +222,7 @@
     if (c.asam === true) return "Ya tiene asamblea";
     if (c.asam == null && !cfg.SIN_DATO_CUENTA_COMO_SIN_ASAMBLEA) return "Sin dato de asamblea";
     if ((cfg.TIPOS_EXCLUIDOS_DEL_REPARTO || []).includes(c.t)) return "Tipo de centro excluido: " + c.t;
-    if ((cfg.TITULARES_EXCLUIDOS_DEL_REPARTO || []).includes(c.tit)) return "Titular excluido: " + c.tit;
+    if (cfg.TITULARES_DEL_REPARTO && !cfg.TITULARES_DEL_REPARTO.includes(c.tit)) return "Titular no CAM: " + c.tit;
     if (c.prof != null && c.prof < (cfg.MIN_DOCENTES || 0)) return "Menos de " + cfg.MIN_DOCENTES + " docentes";
     if (c.lat == null) return "Sin coordenadas (no se puede situar en el mapa)";
     return "";
@@ -199,7 +238,7 @@
     return "https://www.google.com/maps/dir/" + puntos.map((p) => p.lat + "," + p.lon).join("/");
   }
 
-  const api = { calcularZonas, enlaceRuta, entraEnReparto, motivoExclusion };
+  const api = { calcularZonas, enlaceRuta, entraEnReparto, motivoExclusion, sinManana, txtHorario };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.Zonas = api;
 })(this);
