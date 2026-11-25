@@ -26,7 +26,7 @@ Esta web NO es la consulta digital. **La consulta digital oficial es [huelgaeduc
 
 Esta web es para animar centro a centro para que la gente vote: un proyecto para que los profes nos autoorganicemos y visitemos los centros menos activos para movilizarlos y que voten si quieren que Zarzalejo se siente a negociar. 
 
-El código para usar esta herramienta es <span style="color: var(--rojo)">N0s3p3g4!!</span>. 0 es un cero. Cópiala y pegala cuando reserves zona cuando te lo pida. 
+El código para usar esta herramienta es <span style="color: #FF6B5E; font-weight: 700">N0s3p3g4!!</span>. 0 es un cero. Cópiala y pegala cuando reserves zona cuando te lo pida. 
 
 Hay unos **{{n_con_asamblea}} centros organizados en asamblea**. Pero en la Comunidad de Madrid hay
 **{{n_por_visitar}} centros públicos más** que aún no se han organizado en asambleas docentes. ¿Por qué no están movilizados? Esta información es muy importante. ¿Saben que pueden votar la petición de que Zarzalejo negocie? ¿Saben que las mejoras que se consigan serán para todas, hayan hecho huelga o no?
