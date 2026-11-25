@@ -24,7 +24,7 @@
 
 Esta web NO es la consulta digital. **La CONSULTA DIGITAL OFICIAL está** en **[huelgaeducativamadrid.org](https://huelgaeducativamadrid.org/)**. 
 
-*Esta web es para animar a participar en la consulta digital yendo centro centro.*
+Esta web es para animar a participar en la consulta digital yendo centro centro.
 Es un proyecto para que los profes nos autoorganicemos y visitemos los centros menos activos para movilizarlos e informarles de que esta semana pueden votar para pedir que Zarzalejo se siente a negociar. Movilizamos el voto digital, centro a centro, profe a profe. 
 
 *El código para apuntarse a una zona es*: **N0s3p3g4!!**
